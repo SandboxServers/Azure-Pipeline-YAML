@@ -1,0 +1,35 @@
+parameters:
+- name: Artifacts
+  type: object
+  default: {}
+- name: Environments
+  type: object
+  default: {}
+- name: SCName
+  type: string
+  default: ''
+- name: VariableLocation
+  default: ''
+- name: SKipInfra
+  default: false
+  type: boolean
+
+stages:
+- stage: Build
+  jobs:
+  - template: ../jobs/build.yml@YAML
+    parameters:
+      Artifacts: ${{ parameters.Artifacts }}
+      VariableLocation: ${{ parameters.VariableLocation }}
+  - ${{ if eq(parameters['SkipInfra'], false) }}:
+    - template: ../../Standalone/Jobs/Bicep/Build.yml@YAML
+      parameters:
+        Environment: ${{ Environment.env }}
+        SCName: ${{ parameters.SCName }}
+        VariableLocation: ${{ parameters.VariableLocation }}
+    - ${{ each environment in parameters.environments }}:
+      - template: ../../Standalone/Jobs/Bicep/Validate.yml@YAML
+        parameters:
+          Environment: ${{ Environment.env }}
+          SCName: ${{ parameters.SCName }}
+          VariableLocation: ${{ parameters.VariableLocation }}

@@ -1,0 +1,7 @@
+variables:
+  projectName: ProjectNameGoesHere
+  solution: $(projectName).sln
+  msBuildArgs: '/p:DeployOnBuild=true /p:PublishProfile=Debug /p:WarningLevel=2'
+  buildPlatform: Any CPU
+  buildConfiguration: Debug
+  environment: build

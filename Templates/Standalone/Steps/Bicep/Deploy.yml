@@ -1,0 +1,100 @@
+parameters:
+- name: artifactName
+  type: object
+  default: {}
+- name: environment
+  type: string
+  default: 
+steps:
+  #Downloads from the current pipeline run
+- download: current
+  displayName: Download Bicep Files
+  #Downloads this artifact
+  artifact: Bicep
+  #This is a marketplace task
+  #Used to replace environment specific pieces of configuration files
+  #Allows one bicepparam file to be maintained
+  #Environment specific information comes from a combination of pipeline parameters and variables
+  #The updated bicepparam file is used to ship the bicep code
+- task: replacetokens@5
+  inputs:
+    rootDirectory: '$(Pipeline.Workspace)'
+    targetFiles: '$(RelativeBicepParametersLocation)'
+    encoding: 'auto'
+    tokenPattern: 'default'
+    writeBOM: true
+    actionOnMissing: 'warn'
+    keepToken: false
+    actionOnNoFiles: 'continue'
+    enableTransforms: false
+    enableRecursion: false
+    useLegacyPattern: false
+    enableTelemetry: false
+  #This task converts the bicep and bicep param files to their ARM template JSON equivalent and performs an ARM deployment
+- task: AzureResourceManagerTemplateDeployment@3
+  displayName: Deploy Infra
+  inputs:
+    deploymentScope: 'Resource Group'
+    azureResourceManagerConnection: 'DriveBackup'
+    subscriptionId: '$(SubscriptionId)'
+    action: 'Create Or Update Resource Group'
+    resourceGroupName: '$(ResourceGroupName)'
+    location: '$(AzureLocation)'
+    templateLocation: 'Linked artifact'
+    csmFile: '$(BicepFileLocation)'
+    csmParametersFile: '$(BicepParametersLocation)'
+    deploymentMode: 'Incremental'
+    deploymentName: '$(Build.DefinitionName)_$(Build.BuildId)'
+  #Used to perform a task that is not possible to do in bicep but must be run after bicep
+  #When doing this, ensure the command you are using is capable of being run multiple times without throwing errors
+  #Else, write the code so that it checks for a certain state and then runs the one-time code if it needs it.
+  #If no action is required, do nothing.
+- task: AzureCLI@2
+  displayName: Link domain to SWA
+  inputs:
+    azureSubscription: 'DriveBackup'
+    scriptType: 'pscore'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      $env:AZURE_CORE_ONLY_SHOW_ERRORS = $true
+      $env:AZURE_CORE_NO_COLOR = $true
+
+      az staticwebapp hostname set --hostname testswa-$(environmentName).sandboxservers.games --name $(appName)-swa-$(environmentName) --no-wait
+    addSpnToEnvironment: true
+    workingDirectory: 'test'
+    failOnStandardError: true
+  #More post-bicep actions
+  #Kinda surprised this isnt retrievable in bicep, but i couldnt find a way as of writing.
+- task: AzureCLI@2
+  displayName: Save SWA API Key
+  inputs:
+    azureSubscription: 'DriveBackup'
+    scriptType: 'pscore'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      $env:AZURE_CORE_ONLY_SHOW_ERRORS = $true
+      $env:AZURE_CORE_NO_COLOR = $true
+
+      $Key = (az staticwebapp secrets list --name $(appName)-swa-$(environmentName) | convertfrom-json).properties.apikey
+
+      $KeyVaultName = (az pipelines variable-group list --group-name "$(Build.DefinitionName)-${{ parameters.environment }}" --org "https://dev.azure.com/sandboxservers" --project "stoneindustries" | convertfrom-json).providerdata.vault
+
+      $Secret = az keyvault secret set --name SWA-DEPLOYMENT-TOKEN --vault-name $KeyVaultName --value $Key
+    addSpnToEnvironment: true
+    workingDirectory: 'test'
+    failOnStandardError: true
+  #This is settable in bicep but i decided to do it in Azure CLI For some reason.
+- task: AzureCLI@2
+  displayName: Add SQL Admin
+  inputs:
+    azureSubscription: 'DriveBackup'
+    scriptType: 'pscore'
+    scriptLocation: 'inlineScript'
+    inlineScript: |
+      $env:AZURE_CORE_ONLY_SHOW_ERRORS = $true
+      $env:AZURE_CORE_NO_COLOR = $true
+
+      az sql server ad-admin create --display-name $(administratorLogin) --object-id $(administratorLoginId) --resource-group $(ResourceGroupName) --server $(appName)-sql
+    addSpnToEnvironment: true
+    workingDirectory: 'test'
+    failOnStandardError: true

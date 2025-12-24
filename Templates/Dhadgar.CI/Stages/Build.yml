@@ -1,0 +1,23 @@
+parameters:
+  services: []
+  servicesCsvNormalized: ',,'
+  buildConfiguration: 'Release'
+  dotnetSdkVersion: '10.0.x'
+  includePreview: true
+  runTests: true
+  collectCoverage: true
+
+stages:
+- stage: Build
+  displayName: Build & Test
+  jobs:
+  - ${{ each svc in parameters.services }}:
+    - ${{ if or(eq(parameters.servicesCsvNormalized, ',,'), contains(parameters.servicesCsvNormalized, format(',{0},', svc.id))) }}:
+      - template: ../Jobs/Build.yml
+        parameters:
+          service: ${{ svc }}
+          buildConfiguration: ${{ parameters.buildConfiguration }}
+          dotnetSdkVersion: ${{ parameters.dotnetSdkVersion }}
+          includePreview: ${{ parameters.includePreview }}
+          runTests: ${{ parameters.runTests }}
+          collectCoverage: ${{ parameters.collectCoverage }}

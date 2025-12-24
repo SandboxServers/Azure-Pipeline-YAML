@@ -1,0 +1,48 @@
+parameters:
+- name: Artifacts
+  type: object
+  default: {}
+- name: environment
+  type: string
+  default:
+- name: SKipInfra
+  default: false
+  type: boolean
+
+stages:
+- stage: ${{ parameters.environment }}
+  ${{ if eq(parameters['environment'], 'dev') }}:
+    condition: | 
+      and(
+        succeeded(), 
+        or(
+          startsWith(variables['Build.SourceBranch'], 'refs/heads/azure-pipelines'),
+          startsWith(variables['Build.SourceBranch'], 'refs/heads/users/'),
+          startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'),
+          startsWith(variables['Build.SourceBranch'], 'refs/heads/feature/'), 
+          eq(variables['Build.SourceBranch'], 'refs/heads/main')
+        )
+      )
+    dependsOn: Build
+  ${{ elseif eq(parameters['environment'], 'prod') }}:
+    condition: |
+      and(
+        succeeded(), 
+        or(
+          startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'), 
+          eq(variables['Build.SourceBranch'], 'refs/heads/main')
+        )
+      )
+    dependsOn: 
+      - Build
+      - dev
+  jobs:
+  - ${{ if eq(parameters['SkipInfra'], false) }}:
+    - template: ../jobs/infra.yml@YAML
+      parameters:
+        environment: ${{ parameters.environment }}
+  - ${{ each artifact in parameters.Artifacts }}:
+    - template: ../jobs/deploy.yml@YAML
+      parameters:
+        artifactName: ${{ artifact.name }}
+        environment: ${{ parameters.environment }}

@@ -1,0 +1,14 @@
+parameters:
+  apiToken: ''
+  appLocation: '.'
+  outputLocation: '_swa_publish/wwwroot'
+  appBuildCommand: ''
+steps:
+- task: AzureStaticWebApp@0
+  displayName: 'Deploy to Azure Static Web Apps'
+  inputs:
+    azure_static_web_apps_api_token: ${{ parameters.apiToken }}
+    app_location: ${{ parameters.appLocation }}
+    output_location: ${{ parameters.outputLocation }}
+    ${{ if ne(parameters.appBuildCommand, '') }}:
+      app_build_command: ${{ parameters.appBuildCommand }}

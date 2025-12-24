@@ -1,0 +1,28 @@
+parameters:
+  services: []
+  servicesCsvNormalized: ',,'
+  buildConfiguration: 'Release'
+  deploy: true
+
+stages:
+- stage: Release
+  displayName: Release
+  dependsOn: Build
+  condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'), eq('${{ parameters.deploy }}', 'true'))
+  jobs:
+  - ${{ each svc in parameters.services }}:
+    - ${{ if and(eq(svc.deploy, 'swa'), or(eq(parameters.servicesCsvNormalized, ',,'), contains(parameters.servicesCsvNormalized, format(',{0},', svc.id)))) }}:
+      - job: DeploySwa_${{ replace(svc.id, '.', '_') }}
+        displayName: 'Deploy (SWA): ${{ svc.id }}'
+        pool:
+          vmImage: 'ubuntu-latest'
+        variables:
+          BuildConfiguration: ${{ parameters.buildConfiguration }}
+        steps:
+        - checkout: self
+        - template: ../Steps/DeploySwa.yml
+          parameters:
+            apiToken: ${{ format('$(%s)', svc.swa.apiTokenVar) }}
+            appLocation: ${{ svc.swa.appLocation }}
+            outputLocation: ${{ svc.swa.outputLocation }}
+            appBuildCommand: ${{ svc.swa.appBuildCommand }}

@@ -1,0 +1,48 @@
+parameters:
+- name: artifactName
+  type: string
+  default:
+- name: environment
+  type: string
+  default:
+
+jobs:
+- deployment: deploy_${{ parameters.artifactName }}
+  ${{ if eq(parameters['artifactName'], 'DB') }}:
+    dependsOn:
+    - deploy_infra
+    pool:
+      vmImage: windows-latest
+  ${{ elseif eq(parameters['artifactName'], 'API') }}:
+    dependsOn: 
+    - deploy_infra
+    - deploy_db
+    pool:
+      vmImage: windows-latest
+  ${{ elseif eq(parameters['artifactName'], 'WWW') }}:
+    dependsOn: 
+    - deploy_infra
+    - deploy_api
+    pool:
+      name: Sandbox Servers Linux Agents
+  displayName: Deploy ${{ parameters.artifactName }}
+  environment: "$(Build.DefinitionName)-${{ parameters.environment }}"
+  variables:
+    - template: /pipeline/variables/${{ parameters.environment }}.yml@self
+  workspace:
+    clean: all
+  strategy:
+    runOnce:
+      deploy:
+        steps:
+          - ${{ if eq(parameters['artifactName'], 'DB') }}:
+            - template: ../../Standalone/Steps/SQL-Dacpac.yml@YAML
+          - ${{ elseif eq(parameters['artifactName'], 'API') }}:
+            - template: ../../Standalone/Steps/Azure-Functions.yml@YAML
+              parameters:
+                ArtifactName: ${{ parameters.artifactName }}
+          - ${{ elseif eq(parameters['artifactName'], 'WWW') }}:
+            - template: ../../Standalone/Steps/Static-Web-App.yml@YAML
+              parameters:
+                ArtifactName: ${{ parameters.artifactName }}
+                Environment: ${{ parameters.environment }}

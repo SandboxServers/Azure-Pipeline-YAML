@@ -1,0 +1,16 @@
+parameters:
+- name: artifactName
+  type: object
+  default: {}
+steps:
+- download: current
+  displayName: Download Functions
+  artifact: ${{ parameters.artifactName }}
+- task: AzureFunctionApp@2
+  displayName: Deploy Functions
+  inputs:
+    azureSubscription: 'DriveBackup'
+    appType: 'functionApp'
+    appName: '$(functionAppName)'
+    package: '$(functionAppFolder)'
+    deploymentMethod: 'auto'

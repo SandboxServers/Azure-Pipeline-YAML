@@ -1,0 +1,25 @@
+parameters:
+- name: environment
+  type: string
+  default:
+- name: VariableLocation
+  default: ''
+- name: SCName
+  type: string
+  default: ''
+
+jobs:
+- job: validate_bicep_${{ parameters.environment }}
+  displayName: "Validate Bicep - ${{ parameters.environment }}"
+  pool:
+    vmImage: windows-latest
+  dependsOn: []
+  variables:
+    - template: ${{ parameters.VariableLocation }}/${{ parameters.environment }}.yml@self
+  workspace:
+    clean: all
+  steps:
+  - template: ../../Standalone/Steps/Bicep/Validate.yml@YAML
+    parameters:
+      SCName: ${{ parameters.SCName }}
+      environment: ${{ parameters.environment }}

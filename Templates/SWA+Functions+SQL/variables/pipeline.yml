@@ -1,0 +1,36 @@
+variables:
+  - name: sqlServerName
+    value: $(appName)-sql.database.windows.net
+  - name: DacpacFile
+    value: '$(Pipeline.Workspace)/DB/DriveBackup.Database.dacpac'
+  - name: functionAppFolder
+    value: $(Pipeline.Workspace)/API
+  - name: staticWebAppFolder
+    value:  $(Pipeline.Workspace)/WWW
+  - name: dacpacArgs
+    value: '/p:BlockOnPossibleDataLoss=false /p:DropObjectsNotInSource=true /p:IgnoreExtendedProperties=true /p:IgnoreColumnOrder=true /p:ExcludeObjectTypes="$(DACPAC-Exclude)"'
+  - name: DACPAC-Exclude
+    value: ApplicationRoles;Credentials;DatabaseScopedCredentials;ExtendedProperties;Filegroups;Logins;Users;PartitionFunctions;PartitionSchemes;Permissions;RoleMembership;ServerRoleMembership;ServerRoles;SecurityPolicies
+  - name: BicepPattern
+    value: SWA+Functions+SQL
+  - name: SubscriptionId
+    value: 93b5e6b0-a9c7-4444-8205-c68b448ae670
+  - name: ResourceGroupName
+    value: test2
+  - name: AzureLocation
+    value: West US 2
+  - name: BicepFileLocation
+    value: $(Pipeline.Workspace)/Bicep/Patterns/$(BicepPattern)/main.bicep
+  - name: BicepParametersLocation
+    value: $(Pipeline.Workspace)/Bicep/Patterns/$(BicepPattern)/main.bicepparam
+  - name: RelativeBicepParametersLocation
+    value: Bicep/Patterns/$(BicepPattern)/main.bicepparam
+  - name: Location
+    value: westus3
+  - name: appName
+    value: entbide
+  - name: administratorLogin
+    value: drivebackup-sql-admin
+  - name: administratorLoginId
+    value: c4b4041d-4d11-4826-aa4a-dddd46bb98d9
+  - group: DriveBackup

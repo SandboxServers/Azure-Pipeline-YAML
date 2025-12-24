@@ -1,0 +1,51 @@
+parameters:
+- name: artifacts
+  type: object
+  default: {}
+steps:
+- checkout: self
+  displayName: Download Source Code
+- task: Cache@2
+  displayName: Download Node Cache
+  inputs:
+    key: 'node | "$(Agent.OS)" | client/package-lock.json'
+    restoreKeys: |
+      node | "$(Agent.OS)"
+      node
+    path: client/node_modules
+- task: NodeTool@0 
+  displayName: Node Tool Installer
+  inputs:
+    versionSpec: '18.14.x'
+- task: Npm@1
+  displayName: NPM Install
+  inputs:
+    command: 'install'
+    workingDir: 'client'
+    verbose: true
+- task: DotNetCoreCLI@2
+  displayName: 'Dotnet Restore'
+  inputs:
+    command: 'restore'
+- task: VSBuild@1
+  displayName: Build API, DB, WWW
+  inputs:
+    solution: $(solution)
+    msbuildArgs: $(msBuildArgs)
+    platform: '$(buildPlatform)'
+    configuration: '$(buildConfiguration)'
+- ${{ if ne(variables['Build.Reason'], 'PullRequest') }}:
+  - ${{ each artifact in parameters.artifacts }}:
+    - task: CopyFiles@2
+      displayName: Copy ${{ artifact.name }} Output
+      inputs:
+        SourceFolder: '${{ artifact.outputFolder }}'
+        Contents: '**/*'
+        TargetFolder: '$(Build.ArtifactStagingDirectory)/${{ artifact.name }}'
+    - task: PublishPipelineArtifact@1
+      displayName: Publish ${{ artifact.name }} Artifact
+      condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+      inputs:
+        targetPath: '$(Build.ArtifactStagingDirectory)/${{ artifact.name }}'
+        artifact: '${{ artifact.name }}'
+        publishLocation: 'pipeline'

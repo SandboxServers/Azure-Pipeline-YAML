@@ -1,0 +1,19 @@
+parameters:
+- name: Artifacts
+  type: object
+  default: {}
+- name: VariableLocation
+  default: ''
+
+jobs:
+- job: vsbuild
+  displayName: "Build API, DB, WWW"
+  dependsOn: []
+  variables:
+    - template: ${{ parameters.VariableLocation }}/build.yml@self
+  workspace:
+    clean: all
+  steps:
+  - template: ../../Standalone/Steps/VSBuild-with-NPM.yml@YAML
+    parameters:
+      Artifacts: ${{ parameters.Artifacts }}

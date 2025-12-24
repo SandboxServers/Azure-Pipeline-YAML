@@ -1,0 +1,42 @@
+parameters:
+- name: Environments
+  displayName: Environments
+  type: object
+  default:
+  - env: dev
+  - env: prod
+- name: Artifacts
+  displayName: Environments
+  type: object
+  default:
+  - name: DB
+    outputFolder: output/db
+  - name: API
+    outputFolder: output/api/debug
+  - name: WWW
+    outputFolder: client/build
+- name: SCName
+  type: string
+  default: ''
+- name: VariableLocation
+  default: ''
+- name: SKipInfra
+  default: false
+  type: boolean
+
+stages:
+- template: ../stages/build.yml@YAML
+  parameters:
+    Artifacts: ${{ parameters.Artifacts}}
+    Environments: ${{ parameters.Environments }}
+    SCName: ${{ parameters.SCName }}
+    VariableLocation: ${{ parameters.VariableLocation }}
+    SkipInfra: ${{ parameters.SkipInfra }}
+- ${{ if ne(variables['Build.Reason'], 'PullRequest') }}:
+  - ${{ each environment in parameters.environments }}:
+    - template: ../stages/deploy.yml@YAML
+      parameters:
+        Artifacts: ${{ parameters.Artifacts }}
+        Environment: ${{ Environment.env }}
+        VariableLocation: ${{ parameters.VariableLocation }}
+        SkipInfra: ${{ parameters.SkipInfra }}

@@ -1,0 +1,22 @@
+parameters:
+- name: environment
+  type: string
+  default:
+
+jobs:
+- deployment: deploy_infra
+  displayName: Deploy Infra
+  environment: "$(Build.DefinitionName)-${{ parameters.environment }}"
+  pool:
+    vmImage: windows-latest
+  variables:
+    - template: /parameters/variables/${{ parameters.environment }}.yml@self
+  workspace:
+    clean: all
+  strategy:
+    runOnce:
+      deploy:
+        steps:
+        - template: ../../Standalone/Steps/Bicep/Deploy.yml@YAML
+          parameters:
+            Environment: ${{ parameters.environment }}

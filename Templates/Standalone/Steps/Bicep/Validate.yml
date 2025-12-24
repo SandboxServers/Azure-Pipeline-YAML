@@ -1,0 +1,38 @@
+parameters:
+- name: SCName
+  type: string
+  default: ''
+- name: Environment
+  type: string
+  default: dev
+steps:
+- checkout: Bicep
+  path: Bicep
+- task: replacetokens@5
+  inputs:
+    rootDirectory: '$(Pipeline.Workspace)'
+    targetFiles: '$(RelativeBicepParametersLocation)'
+    encoding: 'auto'
+    tokenPattern: 'default'
+    writeBOM: true
+    actionOnMissing: 'warn'
+    keepToken: false
+    actionOnNoFiles: 'continue'
+    enableTransforms: false
+    enableRecursion: false
+    useLegacyPattern: false
+    enableTelemetry: false
+- task: AzureResourceManagerTemplateDeployment@3
+  displayName: Validate ARM Templates
+  inputs:
+    deploymentScope: 'Resource Group'
+    azureResourceManagerConnection: '${{ parameters.SCName }}-${{ parameters.environment }}'
+    subscriptionId: '$(SubscriptionId)'
+    action: 'Create Or Update Resource Group'
+    resourceGroupName: '$(ResourceGroupName)'
+    location: '$(AzureLocation)'
+    templateLocation: 'Linked artifact'
+    csmFile: '$(BicepFileLocation)'
+    csmParametersFile: '$(BicepParametersLocation)'
+    deploymentMode: 'Validation'
+    deploymentName: '$(Build.DefinitionName)_$(Build.BuildId)'

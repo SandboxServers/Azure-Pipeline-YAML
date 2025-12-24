@@ -1,0 +1,43 @@
+parameters:
+- name: services
+  type: object
+  default: []
+- name: servicesCsvNormalized
+  type: string
+  default: ',,'
+- name: buildConfiguration
+  type: string
+  default: 'Release'
+- name: dotnetSdkVersion
+  type: string
+  default: '10.0.x'
+- name: includePreview
+  type: boolean
+  default: true
+- name: runTests
+  type: boolean
+  default: true
+- name: collectCoverage
+  type: boolean
+  default: true
+- name: deploy
+  type: boolean
+  default: true
+
+stages:
+- template: ../Stages/Build.yml
+  parameters:
+    services: ${{ parameters.services }}
+    servicesCsvNormalized: ${{ parameters.servicesCsvNormalized }}
+    buildConfiguration: ${{ parameters.buildConfiguration }}
+    dotnetSdkVersion: ${{ parameters.dotnetSdkVersion }}
+    includePreview: ${{ parameters.includePreview }}
+    runTests: ${{ parameters.runTests }}
+    collectCoverage: ${{ parameters.collectCoverage }}
+
+- template: ../Stages/Release.yml
+  parameters:
+    services: ${{ parameters.services }}
+    servicesCsvNormalized: ${{ parameters.servicesCsvNormalized }}
+    buildConfiguration: ${{ parameters.buildConfiguration }}
+    deploy: ${{ parameters.deploy }}

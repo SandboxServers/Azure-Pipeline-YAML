@@ -1,0 +1,25 @@
+parameters:
+- name: SCName
+  type: string
+  default: ''
+- name: Environment
+  type: string
+  default: 'dev'
+- name: VariableLocation
+  default: ''
+
+jobs:
+- job: build_bicep
+  displayName: "Build Bicep"
+  pool:
+    vmImage: windows-latest
+  dependsOn: []
+  variables:
+    - template: ${{ parameters.VariableLocation }}/build.yml@self
+  workspace:
+    clean: all
+  steps:
+  - template: ../../Standalone/Steps/Bicep/Build.yml@YAML
+    parameters:
+      SCName: ${{ parameters.SCName }}
+      Environment: ${{ parameters.Environment }}

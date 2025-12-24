@@ -1,0 +1,11 @@
+parameters:
+  resultsDirectory: '$(Agent.TempDirectory)/testresults'
+steps:
+- task: PublishCodeCoverageResults@2
+  displayName: 'Publish code coverage'
+  condition: succeededOrFailed()
+  inputs:
+    codeCoverageTool: 'Cobertura'
+    summaryFileLocation: '${{ parameters.resultsDirectory }}/**/coverage.cobertura.xml'
+    reportDirectory: '${{ parameters.resultsDirectory }}'
+    failIfCoverageEmpty: false

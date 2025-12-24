@@ -1,0 +1,60 @@
+parameters:
+  service:
+    id: ''
+    projectPath: ''
+    testProjectPath: ''
+    deploy: ''
+  buildConfiguration: 'Release'
+  dotnetSdkVersion: '10.0.x'
+  includePreview: true
+  runTests: true
+  collectCoverage: true
+
+jobs:
+- job: Build_${{ replace(parameters.service.id, '.', '_') }}
+  displayName: 'Build: ${{ parameters.service.id }}'
+  pool:
+    vmImage: 'ubuntu-latest'
+  variables:
+    NUGET_PACKAGES: $(Pipeline.Workspace)/.nuget/packages
+    TestResultsDir: $(Agent.TempDirectory)/testresults/${{ replace(parameters.service.id, '.', '_') }}
+  steps:
+  - checkout: self
+
+  - template: ../../Standalone/Steps/DotNet/UseDotNet.yml
+    parameters:
+      dotnetSdkVersion: ${{ parameters.dotnetSdkVersion }}
+      includePreview: ${{ parameters.includePreview }}
+
+  - template: ../../Standalone/Steps/DotNet/CacheNuGet.yml
+    parameters:
+      keySuffix: ${{ parameters.service.projectPath }}
+
+  - template: ../../Standalone/Steps/DotNet/Restore.yml
+    parameters:
+      projectPath: ${{ parameters.service.projectPath }}
+
+  - template: ../../Standalone/Steps/DotNet/Build.yml
+    parameters:
+      projectPath: ${{ parameters.service.projectPath }}
+      buildConfiguration: ${{ parameters.buildConfiguration }}
+
+  - ${{ if eq(parameters.runTests, true) }}:
+    - template: ../../Standalone/Steps/DotNet/TestAndCoverage.yml
+      parameters:
+        testProjectPath: ${{ parameters.service.testProjectPath }}
+        buildConfiguration: ${{ parameters.buildConfiguration }}
+        collectCoverage: ${{ parameters.collectCoverage }}
+        resultsDirectory: $(TestResultsDir)
+
+    - ${{ if eq(parameters.collectCoverage, true) }}:
+      - template: ../../Standalone/Steps/DotNet/PublishCoverage.yml
+        parameters:
+          resultsDirectory: $(TestResultsDir)
+
+  - task: PublishPipelineArtifact@1
+    displayName: 'Publish build outputs (bin/)'
+    inputs:
+      targetPath: '$(Build.SourcesDirectory)'
+      artifactName: 'src-${{ replace(parameters.service.id, '.', '_') }}'
+      publishLocation: 'pipeline'

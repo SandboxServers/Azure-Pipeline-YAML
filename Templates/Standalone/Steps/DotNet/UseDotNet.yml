@@ -1,0 +1,7 @@
+steps:
+- task: UseDotNet@2
+  displayName: 'Use .NET SDK'
+  inputs:
+    packageType: 'sdk'
+    version: ${{ parameters.dotnetSdkVersion }}
+    includePreviewVersions: ${{ parameters.includePreview }}

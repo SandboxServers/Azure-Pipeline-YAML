@@ -1,0 +1,8 @@
+variables:
+- name: environmentName
+  value: prod
+- name: databaseName
+  value: $(appName)-$(environmentName)
+- name: functionAppName
+  value: $(appName)-functions-$(environmentName)
+- group: drivebackup-app-prod

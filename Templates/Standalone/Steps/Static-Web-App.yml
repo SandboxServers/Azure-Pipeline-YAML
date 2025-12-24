@@ -1,0 +1,21 @@
+parameters:
+- name: artifactName
+  type: object
+  default: {}
+- name: environment
+  type: string
+  default: 
+steps:
+- download: current
+  displayName: Download Static Website
+  artifact: ${{ parameters.artifactName }}
+- task: AzureStaticWebApp@0
+  displayName: Deploy Static Website
+  inputs:
+    workingDirectory: '$(Pipeline.Workspace)/${{ parameters.artifactName }}'
+    skip_app_build: true
+    skip_api_build: true
+    azure_static_web_apps_api_token: '$(SWA-DEPLOYMENT-TOKEN)'
+    ${{ if ne(parameters['environment'], 'prod') }}:
+      deployment_environment: ${{ parameters.environment }}
+    production_branch: main

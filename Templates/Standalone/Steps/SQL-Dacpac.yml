@@ -1,0 +1,15 @@
+steps:
+- download: current
+  displayName: Download Dacpac
+  artifact: DB
+- task: SqlAzureDacpacDeployment@1
+  displayName: Deploy Dacpac
+  inputs:
+    azureSubscription: 'DriveBackup'
+    AuthenticationType: 'servicePrincipal'
+    ServerName: '$(sqlServerName)'
+    DatabaseName: '$(databaseName)'
+    deployType: 'DacpacTask'
+    DeploymentAction: 'Publish'
+    DacpacFile: '$(DacpacFile)'
+    AdditionalArguments: '$(dacpacArgs)'

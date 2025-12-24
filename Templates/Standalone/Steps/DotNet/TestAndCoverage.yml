@@ -1,0 +1,27 @@
+parameters:
+  testProjectPath: ''
+  buildConfiguration: 'Release'
+  collectCoverage: true
+  resultsDirectory: '$(Agent.TempDirectory)/testresults'
+steps:
+- ${{ if ne(parameters.testProjectPath, '') }}:
+  - task: DotNetCoreCLI@2
+    displayName: 'dotnet test'
+    inputs:
+      command: 'test'
+      projects: ${{ parameters.testProjectPath }}
+      publishTestResults: false
+      arguments: >
+        -c ${{ parameters.buildConfiguration }}
+        --no-build
+        --logger "trx"
+        --results-directory "${{ parameters.resultsDirectory }}"
+        ${{ if eq(parameters.collectCoverage, true) }}: --collect "XPlat Code Coverage"
+- task: PublishTestResults@2
+  displayName: 'Publish test results'
+  condition: and(succeededOrFailed(), ne('${{ parameters.testProjectPath }}', ''))
+  inputs:
+    testResultsFormat: VSTest
+    testResultsFiles: '${{ parameters.resultsDirectory }}/**/*.trx'
+    mergeTestResults: true
+    failTaskOnFailedTests: true

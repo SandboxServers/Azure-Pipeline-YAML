@@ -1,0 +1,40 @@
+parameters:
+- name: SCName
+  type: string
+  default: ''
+- name: Environment
+  type: string
+  default: 'dev'
+
+steps:
+  #Downloads repository with alias 'Bicep' from azure-pipelines.yml file
+- checkout: Bicep
+  #Path of $(Pipeline.Workspace)/Bicep
+  path: Bicep
+  #Must specify 'self' repository to get triggering repository in this job when specifying other repositories for checkout
+- checkout: self
+  #Preserves default checkout path for triggering repository
+  #This is changed when specifying another repository for checkout
+  #Path of $(Pipeline.Workspace)/s
+  path: s
+  #This probably can be a regular powershell/script/bash task since this doesnt actually require logging into azure cli to run the `az build bicep' command
+  #Env variable used to suppress warnings from writing to error stream as is default behavior of Azure CLI.
+  #Azure Pipelines does not appreciate that behavior and will fail tasks otherwise if a warning is written.
+- task: AzureCLI@2
+  displayName: Build Bicep
+  inputs:
+    azureSubscription: '${{ parameters.SCName}}-${{ parameters.environment }}'
+    scriptType: 'ps'
+    scriptLocation: 'inlineScript'
+    inlineScript: $env:AZURE_CORE_ONLY_SHOW_ERRORS = $true; az bicep build --file main.bicep --stdout
+    addSpnToEnvironment: true
+    workingDirectory: '$(Pipeline.Workspace)/Bicep/Patterns/$(BicepPattern)'
+    failOnStandardError: true
+  #Publish entire bicep repository as an artifact for this for use during deployment if the pattern we are using builds properly
+  #Bicep does support publishing and referencing bicep files from container registries, but thats just extra maintenance and aint nobody got time for that.
+- task: PublishPipelineArtifact@1
+  displayName: Publish Bicep Artifact
+  inputs:
+    targetPath: '$(Pipeline.Workspace)/Bicep'
+    artifact: 'Bicep'
+    publishLocation: 'pipeline'
