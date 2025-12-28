@@ -1,7 +1,31 @@
 parameters:
   chartPath: ''
+  strict: false
 
 steps:
 - bash: |
-    helm lint ${{ parameters.chartPath }}
+    set -e  # Exit on error
+
+    # Validate chart path exists
+    if [ ! -d "${{ parameters.chartPath }}" ]; then
+      echo "❌ Error: Chart directory not found at ${{ parameters.chartPath }}"
+      exit 1
+    fi
+
+    # Check for Chart.yaml
+    if [ ! -f "${{ parameters.chartPath }}/Chart.yaml" ]; then
+      echo "❌ Error: Chart.yaml not found in ${{ parameters.chartPath }}"
+      exit 1
+    fi
+
+    echo "=== Linting Helm Chart ==="
+    echo "Chart: ${{ parameters.chartPath }}"
+    echo "Strict: ${{ parameters.strict }}"
+    echo "=========================="
+
+    # Run helm lint with optional strict mode
+    LINT_ARGS="${{ parameters.strict }}"
+    helm lint ${{ parameters.chartPath }} $LINT_ARGS
+
+    echo "✅ Helm chart linting passed"
   displayName: 'Lint Helm chart'

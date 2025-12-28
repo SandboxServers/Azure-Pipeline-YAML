@@ -6,6 +6,8 @@ parameters:
   chartVersion: ''
   helmRegistry: ''
   environment: ''
+  deployTimeout: '10m'
+  testTimeout: '5m'
 
 jobs:
 - deployment: deploy_helm
@@ -19,10 +21,6 @@ jobs:
     runOnce:
       deploy:
         steps:
-        - bash: |
-            kubectl config use-context $(kubernetesServiceConnection)
-          displayName: Configure kubectl
-
         - template: ../Steps/Helm/Deploy.yml@YAML
           parameters:
             chartName: ${{ parameters.chartName }}
@@ -32,8 +30,10 @@ jobs:
             chartVersion: ${{ parameters.chartVersion }}
             helmRegistry: ${{ parameters.helmRegistry }}
             upgrade: true
+            timeout: ${{ parameters.deployTimeout }}
+            testTimeout: ${{ parameters.testTimeout }}
 
         - bash: |
-            helm status ${{ parameters.releaseName }} --namespace ${{ parameters.namespace }}
+            helm status ${{ parameters.releaseName }} --namespace ${{ parameters.namespace }} --show-resources
           displayName: Check deployment status
           condition: succeededOrFailed()

@@ -4,6 +4,9 @@ parameters:
   acrName: ''
   helmVersion: ''
   VariableLocation: ''
+  acrServiceConnection: ''
+  deployTimeout: '10m'
+  testTimeout: '5m'
 
 stages:
 - stage: Build
@@ -15,3 +18,4 @@ stages:
       chartPath: ${{ parameters.chartPath }}
       acrName: ${{ parameters.acrName }}
       helmVersion: ${{ parameters.helmVersion }}
+      acrServiceConnection: ${{ parameters.acrServiceConnection }}

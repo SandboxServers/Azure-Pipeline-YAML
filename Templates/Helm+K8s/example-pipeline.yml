@@ -37,3 +37,8 @@ extends:
     ACRName: meridianconsoleacr
     HelmVersion: 3.13.0
     VariableLocation: /pipeline/variables
+
+    # Optional parameters (recommended)
+    ACRServiceConnection: 'my-azure-subscription'  # Your ACR service connection name
+    DeployTimeout: '15m'      # Increased timeout for complex deployments
+    TestTimeout: '10m'         # Increased timeout for test execution

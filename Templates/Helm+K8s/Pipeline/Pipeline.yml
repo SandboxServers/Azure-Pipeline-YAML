@@ -25,6 +25,18 @@ parameters:
   displayName: Variable Location
   type: string
   default: /pipeline/variables
+- name: ACRServiceConnection
+  displayName: ACR Service Connection
+  type: string
+  default: ''
+- name: DeployTimeout
+  displayName: Deploy Timeout
+  type: string
+  default: '10m'
+- name: TestTimeout
+  displayName: Test Timeout
+  type: string
+  default: '5m'
 
 stages:
 - template: ../stages/build.yml@YAML
@@ -34,14 +46,17 @@ stages:
     ACRName: ${{ parameters.ACRName }}
     HelmVersion: ${{ parameters.HelmVersion }}
     VariableLocation: ${{ parameters.VariableLocation }}
+    ACRServiceConnection: ${{ parameters.ACRServiceConnection }}
 - ${{ if ne(variables['Build.Reason'], 'PullRequest') }}:
   - ${{ each environment in parameters.environments }}:
     - template: ../stages/deploy.yml@YAML
       parameters:
         ChartName: ${{ parameters.ChartName }}
-        Environment: ${{ Environment.env }}
-        ValuesFile: ${{ parameters.VariableLocation }}/${{ Environment.env }}.yml
-        ChartVersion: $(CHART_VERSION)
+        Environment: ${{ environment.env }}
+        ValuesFile: ${{ parameters.VariableLocation }}/${{ environment.env }}.yml
+        ChartVersion: $[ stageDependencies.Build.publish.outputs['publish_helm.CHART_VERSION'] ]
         HelmRegistry: $(helmRegistry)
         Namespace: ${{ environment.namespace }}
         ReleaseName: ${{ environment.releaseName }}
+        DeployTimeout: ${{ parameters.DeployTimeout }}
+        TestTimeout: ${{ parameters.TestTimeout }}

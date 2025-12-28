@@ -6,6 +6,8 @@ parameters:
   helmRegistry: ''
   namespace: ''
   releaseName: ''
+  deployTimeout: '10m'
+  testTimeout: '5m'
 
 stages:
 - stage: ${{ parameters.environment }}
@@ -45,3 +47,5 @@ stages:
       chartVersion: ${{ parameters.chartVersion }}
       helmRegistry: ${{ parameters.helmRegistry }}
       environment: ${{ parameters.environment }}
+      deployTimeout: ${{ parameters.deployTimeout }}
+      testTimeout: ${{ parameters.testTimeout }}
