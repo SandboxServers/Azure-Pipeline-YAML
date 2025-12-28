@@ -52,4 +52,4 @@ steps:
   displayName: 'Push Helm chart to ACR'
   env:
     HELM_EXPERIMENTAL_OCI: 1
-    ACR_LOGIN_SERVER: $[ dependencies.acrLogin.outputs['ACR_LOGIN_SERVER'] ]
+    ACR_LOGIN_SERVER: $[ dependencies.publish_helm.outputs['acrLogin.ACR_LOGIN_SERVER'] ]
