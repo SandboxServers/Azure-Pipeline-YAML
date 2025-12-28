@@ -10,106 +10,129 @@ parameters:
   testTimeout: '5m'
 
 steps:
-- bash: |
-    set -e  # Exit on error
-
-    # Validate chart version is provided
-    if [ -z "${{ parameters.chartVersion }}" ]; then
-      echo "❌ Error: chartVersion is required"
-      exit 1
-    fi
-
-    # Validate namespace is provided
-    if [ -z "${{ parameters.namespace }}" ]; then
-      echo "❌ Error: namespace is required"
-      exit 1
-    fi
-
-    echo "=== Deployment Configuration ==="
-    echo "Chart: ${{ parameters.helmRegistry }}/${{ parameters.chartName }}"
-    echo "Version: ${{ parameters.chartVersion }}"
-    echo "Release: ${{ parameters.releaseName }}"
-    echo "Namespace: ${{ parameters.namespace }}"
-    echo "Timeout: ${{ parameters.timeout }}"
-    echo "================================"
-  displayName: 'Validate deployment parameters'
-
 - ${{ if eq(parameters['upgrade'], true) }}:
-  - bash: |
-      set -e  # Exit on error
+  - task: Bash@3
+    displayName: 'Validate deployment parameters'
+    inputs:
+      targetType: 'inline'
+      script: |
+        #!/bin/bash
+        set -e
 
-      # Handle values file - only use if parameter is provided and file exists
-      VALUES_ARGS=""
-      if [ -n "${{ parameters.valuesFile }}" ]; then
-        if [ -f "${{ parameters.valuesFile }}" ]; then
+        echo "=== Deployment Configuration ==="
+        echo "Chart: ${{ parameters.helmRegistry }}/${{ parameters.chartName }}"
+        echo "Version: ${{ parameters.chartVersion }}"
+        echo "Release: ${{ parameters.releaseName }}"
+        echo "Namespace: ${{ parameters.namespace }}"
+        echo "Timeout: ${{ parameters.timeout }}"
+        echo "================================"
+
+        # Validate required parameters
+        if [ -z "${{ parameters.chartVersion }}" ]; then
+          echo "❌ Error: chartVersion is required"
+          exit 1
+        fi
+
+        if [ -z "${{ parameters.namespace }}" ]; then
+          echo "❌ Error: namespace is required"
+          exit 1
+        fi
+
+  - task: Bash@3
+    displayName: 'Prepare values arguments'
+    inputs:
+      targetType: 'inline'
+      script: |
+        #!/bin/bash
+        set -e
+
+        VALUES_ARGS=""
+        if [ -n "${{ parameters.valuesFile }}" ] && [ -f "${{ parameters.valuesFile }}" ]; then
           VALUES_ARGS="--values ${{ parameters.valuesFile }}"
           echo "Using values file: ${{ parameters.valuesFile }}"
-        else
+        elif [ -n "${{ parameters.valuesFile }}" ]; then
           echo "⚠️ Warning: Values file not found: ${{ parameters.valuesFile }}"
           echo "Continuing without values file..."
-        fi
-      else
-        echo "ℹ️ No values file specified, using chart defaults"
-      fi
-
-      # Perform Helm upgrade with retry logic
-      MAX_RETRIES=2
-      RETRY_COUNT=0
-
-      while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-        if helm upgrade ${{ parameters.releaseName }} \
-          ${{ parameters.helmRegistry }}/${{ parameters.chartName }} \
-          --version ${{ parameters.chartVersion }} \
-          --namespace ${{ parameters.namespace }} \
-          $VALUES_ARGS \
-          --install \
-          --create-namespace \
-          --wait \
-          --timeout ${{ parameters.timeout }} \
-          --atomic \
-          --debug; then
-          echo "✅ Successfully deployed ${{ parameters.chartName }}:${{ parameters.chartVersion }} to ${{ parameters.namespace }}"
-          exit 0
         else
-          RETRY_COUNT=$((RETRY_COUNT + 1))
-          if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
-            echo "⚠️ Deployment failed (attempt $RETRY_COUNT/$MAX_RETRIES), retrying in 10 seconds..."
-            sleep 10
-          fi
+          echo "ℹ️ No values file specified, using chart defaults"
         fi
-      done
 
-      echo "❌ Failed to deploy chart after $MAX_RETRIES attempts"
-      exit 1
+        echo "VALUES_ARGS: $VALUES_ARGS"
+        echo "##vso[task.setvariable variable=VALUES_ARGS]$VALUES_ARGS"
+
+  - task: Bash@3
     displayName: 'Deploy Helm chart'
+    inputs:
+      targetType: 'inline'
+      script: |
+        #!/bin/bash
+        set -e
+
+        MAX_RETRIES=2
+        RETRY_COUNT=0
+
+        while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+          if helm upgrade ${{ parameters.releaseName }} \
+            ${{ parameters.helmRegistry }}/${{ parameters.chartName }} \
+            --version ${{ parameters.chartVersion }} \
+            --namespace ${{ parameters.namespace }} \
+            $(VALUES_ARGS) \
+            --install \
+            --create-namespace \
+            --wait \
+            --timeout ${{ parameters.timeout }} \
+            --atomic \
+            --debug; then
+            echo "✅ Successfully deployed ${{ parameters.chartName }}:${{ parameters.chartVersion }} to ${{ parameters.namespace }}"
+            exit 0
+          else
+            RETRY_COUNT=$((RETRY_COUNT + 1))
+            if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+              echo "⚠️ Deployment failed (attempt $RETRY_COUNT/$MAX_RETRIES), retrying in 10 seconds..."
+              sleep 10
+            fi
+          fi
+        done
+
+        echo "❌ Failed to deploy chart after $MAX_RETRIES attempts"
+        exit 1
+    env:
+      VALUES_ARGS: $(VALUES_ARGS)
+      HELM_EXPERIMENTAL_OCI: 1
+
+  - task: Bash@3
+    displayName: 'Test Helm deployment'
+    condition: succeededOrFailed()
+    inputs:
+      targetType: 'inline'
+      script: |
+        #!/bin/bash
+        set -e
+
+        echo "=== Running Helm Tests ==="
+
+        if helm test ${{ parameters.releaseName }} \
+          --namespace ${{ parameters.namespace }} \
+          --timeout ${{ parameters.testTimeout }} \
+          --logs; then
+          echo "✅ Helm tests passed"
+        else
+          echo "⚠️ Helm tests failed (but deployment may still be functional)"
+          # Don't fail pipeline if tests fail
+          exit 0
+        fi
     env:
       HELM_EXPERIMENTAL_OCI: 1
 
-  - bash: |
-      set -e  # Exit on error
-
-      echo "=== Running Helm Tests ==="
-
-      if helm test ${{ parameters.releaseName }} \
-        --namespace ${{ parameters.namespace }} \
-        --timeout ${{ parameters.testTimeout }} \
-        --logs; then
-        echo "✅ Helm tests passed"
-      else
-        echo "⚠️ Helm tests failed (but deployment may still be functional)"
-        # Don't fail the pipeline if tests fail
-        exit 0
-      fi
+- ${{ else }}:
+  - task: Bash@3
     displayName: 'Test Helm deployment'
     condition: succeededOrFailed()
-    env:
-      HELM_EXPERIMENTAL_OCI: 1
-  ${{ else }}:
-  - bash: |
-      helm test ${{ parameters.releaseName }} \
-        --namespace ${{ parameters.namespace }} \
-        --timeout ${{ parameters.testTimeout }}
-    displayName: 'Test Helm deployment'
-    condition: succeededOrFailed()
+    inputs:
+      targetType: 'inline'
+      script: |
+        helm test ${{ parameters.releaseName }} \
+          --namespace ${{ parameters.namespace }} \
+          --timeout ${{ parameters.testTimeout }}
     env:
       HELM_EXPERIMENTAL_OCI: 1

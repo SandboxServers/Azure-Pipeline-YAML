@@ -33,7 +33,10 @@ jobs:
             timeout: ${{ parameters.deployTimeout }}
             testTimeout: ${{ parameters.testTimeout }}
 
-        - bash: |
-            helm status ${{ parameters.releaseName }} --namespace ${{ parameters.namespace }} --show-resources
-          displayName: Check deployment status
+        - task: Bash@3
+          displayName: 'Check deployment status'
           condition: succeededOrFailed()
+          inputs:
+            targetType: 'inline'
+            script: |
+              helm status ${{ parameters.releaseName }} --namespace ${{ parameters.namespace }} --show-resources

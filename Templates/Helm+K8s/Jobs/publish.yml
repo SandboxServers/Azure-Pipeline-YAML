@@ -45,38 +45,30 @@ jobs:
     env:
       HELM_REPOS: bitnami=https://charts.bitnami.com/bitnami
 
+  - task: Docker@2
+    displayName: 'Login to ACR'
+    name: acrLogin
+    inputs:
+      command: login
+      containerRegistry: ${{ parameters.acrName }}.azurecr.io
+    env:
+      ACR_NAME: ${{ parameters.acrName }}
+      AZURE_SERVICE_CONNECTION: ${{ parameters.acrServiceConnection }}
+
   - bash: |
-      set -e  # Exit on error
+      set -e
 
       ACR_NAME="${ACR_NAME:-${{ parameters.acrName }}}"
       ACR_LOGIN_SERVER="${ACR_NAME}.azurecr.io"
 
-      echo "=== Logging into Azure Container Registry ==="
-      echo "Registry: $ACR_NAME"
-      echo "Server: $ACR_LOGIN_SERVER"
+      echo "=== Logging into Helm Registry ==="
+      echo "Registry: $ACR_LOGIN_SERVER"
       echo "======================================="
 
-      # Validate Azure CLI is authenticated
-      if ! az account show >/dev/null 2>&1; then
-        echo "❌ Error: Azure CLI is not authenticated"
-        echo "Please ensure Azure Service Connection is configured or run 'az login' locally"
-        exit 1
-      fi
-
-      # Set output variable for downstream stages and current job
+      # Set output variable for downstream stages
       echo "##vso[task.setvariable variable=ACR_LOGIN_SERVER;isOutput=true]$ACR_LOGIN_SERVER"
 
-      # Login to ACR using Azure CLI
-      # Note: In Azure DevOps, if a service connection is configured,
-      # the agent should already have auth context. The check above
-      # validates this before attempting operations.
-      if [ -n "$AZURE_SERVICE_CONNECTION" ]; then
-        echo "Using Azure service connection: $AZURE_SERVICE_CONNECTION"
-      fi
-
-      az acr login --name $ACR_NAME
-
-      # Get access token and login to Helm registry
+      # Get ACR access token and login to Helm OCI registry
       ACCESS_TOKEN=$(az acr login --name $ACR_NAME --expose-token --output tsv --query accessToken)
 
       if [ -z "$ACCESS_TOKEN" ]; then
@@ -86,9 +78,9 @@ jobs:
 
       echo "$ACCESS_TOKEN" | helm registry login "$ACR_LOGIN_SERVER" --username 00000000-0000-0000-0000-000000000000 --password-stdin
 
-      echo "✅ Successfully logged into ACR and Helm registry"
-    displayName: Login to ACR
-    name: acrLogin
+      echo "✅ Successfully logged into Helm registry"
+    displayName: 'Login to Helm OCI registry'
+    name: helmRegistryLogin
     env:
       ACR_NAME: ${{ parameters.acrName }}
       AZURE_SERVICE_CONNECTION: ${{ parameters.acrServiceConnection }}

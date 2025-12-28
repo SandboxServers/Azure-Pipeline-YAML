@@ -40,6 +40,7 @@ if [ ! -d "$CHART_PATH" ]; then
 fi
 
 echo -e "${YELLOW}Running helm lint...${NC}"
+# Note: strict mode not used in this test
 helm lint "$CHART_PATH"
 echo -e "${GREEN}✅ Helm lint passed${NC}"
 echo ""
