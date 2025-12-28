@@ -1,0 +1,9 @@
+variables:
+  # Kubernetes cluster connection (Azure DevOps service connection)
+  kubernetesServiceConnection: meridian-aks-connection
+
+  # ACR login server
+  acrLoginServer: $(acrName).azurecr.io
+
+  # Helm registry path
+  helmRegistry: oci://$(acrLoginServer)/helm

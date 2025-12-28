@@ -1,0 +1,54 @@
+parameters:
+  chartName: ''
+  chartPath: ''
+  acrName: ''
+  helmVersion: ''
+
+jobs:
+- job: publish_helm
+  displayName: 'Publish Helm Chart'
+  pool:
+    vmImage: ubuntu-latest
+  dependsOn: []
+  variables:
+    - template: /pipeline/variables/build.yml@self
+  steps:
+  - checkout: self
+    displayName: Checkout source code
+
+  - task: HelmInstaller@1
+    displayName: 'Install Helm $(helmVersion)'
+    inputs:
+      helmVersionToInstall: '${{ parameters.helmVersion }}'
+
+  - bash: |
+      helm repo add bitnami https://charts.bitnami.com/bitnami
+      helm repo update
+    displayName: Add Bitnami repository
+
+  - bash: |
+      ACR_LOGIN_SERVER="${ACR_NAME}.azurecr.io"
+      echo "##vso[task.setvariable variable=ACR_LOGIN_SERVER]$ACR_LOGIN_SERVER"
+
+      az acr login --name $ACR_NAME
+
+      ACCESS_TOKEN=$(az acr login --name $ACR_NAME --expose-token --output tsv --query accessToken)
+      echo "$ACCESS_TOKEN" | helm registry login "$ACR_LOGIN_SERVER" --username 00000000-0000-0000-0000-000000000000 --password-stdin
+    displayName: Login to ACR
+    env:
+      ACR_NAME: ${{ parameters.acrName }}
+
+  - template: ../Steps/Helm/Lint.yml@YAML
+    parameters:
+      chartPath: ${{ parameters.chartPath }}
+
+  - template: ../Steps/Helm/Package.yml@YAML
+    parameters:
+      chartPath: ${{ parameters.chartPath }}
+      chartName: ${{ parameters.chartName }}
+
+  - template: ../Steps/Helm/Publish.yml@YAML
+    parameters:
+      chartName: ${{ parameters.chartName }}
+      chartPath: ${{ parameters.chartPath }}
+      acrName: ${{ parameters.acrName }}

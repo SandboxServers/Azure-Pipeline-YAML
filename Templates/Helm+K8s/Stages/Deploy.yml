@@ -1,0 +1,47 @@
+parameters:
+  chartName: ''
+  environment: ''
+  valuesFile: ''
+  chartVersion: ''
+  helmRegistry: ''
+  namespace: ''
+  releaseName: ''
+
+stages:
+- stage: ${{ parameters.environment }}
+  displayName: Deploy ${{ parameters.environment }}
+  ${{ if eq(parameters['environment'], 'dev') }}:
+    condition: |
+      and(
+        succeeded(),
+        or(
+          startsWith(variables['Build.SourceBranch'], 'refs/heads/azure-pipelines'),
+          startsWith(variables['Build.SourceBranch'], 'refs/heads/users/'),
+          startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'),
+          startsWith(variables['Build.SourceBranch'], 'refs/heads/feature/'),
+          eq(variables['Build.SourceBranch'], 'refs/heads/main')
+        )
+      )
+    dependsOn: Build
+  ${{ elseif eq(parameters['environment'], 'prod') }}:
+    condition: |
+      and(
+        succeeded(),
+        or(
+          startsWith(variables['Build.SourceBranch'], 'refs/heads/release/'),
+          eq(variables['Build.SourceBranch'], 'refs/heads/main')
+        )
+      )
+    dependsOn:
+      - Build
+      - dev
+  jobs:
+  - template: ../jobs/deploy.yml@self
+    parameters:
+      chartName: ${{ parameters.chartName }}
+      releaseName: ${{ parameters.releaseName }}
+      namespace: ${{ parameters.namespace }}
+      valuesFile: ${{ parameters.valuesFile }}
+      chartVersion: ${{ parameters.chartVersion }}
+      helmRegistry: ${{ parameters.helmRegistry }}
+      environment: ${{ parameters.environment }}

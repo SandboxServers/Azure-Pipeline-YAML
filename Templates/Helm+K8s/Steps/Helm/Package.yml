@@ -1,0 +1,13 @@
+parameters:
+  chartPath: ''
+  chartName: ''
+
+steps:
+- bash: |
+    helm dependency update ${{ parameters.chartPath }}
+  displayName: 'Update chart dependencies'
+
+- bash: |
+    cd $(System.DefaultWorkingDirectory)/$(dirname ${{ parameters.chartPath }})
+    helm package ${{ parameters.chartName }}
+  displayName: 'Package Helm chart'

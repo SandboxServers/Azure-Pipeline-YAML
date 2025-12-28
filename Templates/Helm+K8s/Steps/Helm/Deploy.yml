@@ -1,0 +1,33 @@
+parameters:
+  chartName: ''
+  releaseName: ''
+  namespace: ''
+  valuesFile: ''
+  chartVersion: ''
+  helmRegistry: ''
+  upgrade: true
+
+steps:
+- ${{ if eq(parameters['upgrade'], true) }}:
+  - bash: |
+      helm upgrade ${{ parameters.releaseName }} \
+        ${{ parameters.helmRegistry }}/${{ parameters.chartName }} \
+        --version ${{ parameters.chartVersion }} \
+        --namespace ${{ parameters.namespace }} \
+        --values ${{ parameters.valuesFile }} \
+        --install \
+        --wait \
+        --timeout 10m \
+        --atomic
+    displayName: 'Deploy Helm chart'
+    env:
+      KUBECONFIG: $(KUBECONFIG)
+  ${{ else }}:
+  - bash: |
+      helm test ${{ parameters.releaseName }} \
+        --namespace ${{ parameters.namespace }} \
+        --timeout 5m
+    displayName: 'Test Helm deployment'
+    condition: succeededOrFailed()
+    env:
+      KUBECONFIG: $(KUBECONFIG)

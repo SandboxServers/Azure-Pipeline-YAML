@@ -1,0 +1,39 @@
+parameters:
+  chartName: ''
+  releaseName: ''
+  namespace: ''
+  valuesFile: ''
+  chartVersion: ''
+  helmRegistry: ''
+  environment: ''
+
+jobs:
+- deployment: deploy_helm
+  displayName: 'Deploy ${{ parameters.environment }}'
+  environment: '${{ parameters.environment }}'
+  pool:
+    vmImage: ubuntu-latest
+  variables:
+    - template: /pipeline/variables/${{ parameters.environment }}.yml@self
+  strategy:
+    runOnce:
+      deploy:
+        steps:
+        - bash: |
+            kubectl config use-context $(kubernetesServiceConnection)
+          displayName: Configure kubectl
+
+        - template: ../Steps/Helm/Deploy.yml@YAML
+          parameters:
+            chartName: ${{ parameters.chartName }}
+            releaseName: ${{ parameters.releaseName }}
+            namespace: ${{ parameters.namespace }}
+            valuesFile: ${{ parameters.valuesFile }}
+            chartVersion: ${{ parameters.chartVersion }}
+            helmRegistry: ${{ parameters.helmRegistry }}
+            upgrade: true
+
+        - bash: |
+            helm status ${{ parameters.releaseName }} --namespace ${{ parameters.namespace }}
+          displayName: Check deployment status
+          condition: succeededOrFailed()

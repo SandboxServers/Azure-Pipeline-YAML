@@ -1,0 +1,47 @@
+parameters:
+- name: Environments
+  displayName: Environments
+  type: object
+  default:
+  - env: dev
+  - env: prod
+- name: ChartName
+  displayName: Chart Name
+  type: string
+  default: meridian-console
+- name: ChartPath
+  displayName: Chart Path
+  type: string
+  default: deploy/kubernetes/helm/meridian-console
+- name: ACRName
+  displayName: ACR Name
+  type: string
+  default: meridianconsoleacr
+- name: HelmVersion
+  displayName: Helm Version
+  type: string
+  default: 3.13.0
+- name: VariableLocation
+  displayName: Variable Location
+  type: string
+  default: /pipeline/variables
+
+stages:
+- template: ../stages/build.yml@YAML
+  parameters:
+    ChartName: ${{ parameters.ChartName }}
+    ChartPath: ${{ parameters.ChartPath }}
+    ACRName: ${{ parameters.ACRName }}
+    HelmVersion: ${{ parameters.HelmVersion }}
+    VariableLocation: ${{ parameters.VariableLocation }}
+- ${{ if ne(variables['Build.Reason'], 'PullRequest') }}:
+  - ${{ each environment in parameters.environments }}:
+    - template: ../stages/deploy.yml@YAML
+      parameters:
+        ChartName: ${{ parameters.ChartName }}
+        Environment: ${{ Environment.env }}
+        ValuesFile: ${{ parameters.VariableLocation }}/${{ Environment.env }}.yml
+        ChartVersion: $(CHART_VERSION)
+        HelmRegistry: $(helmRegistry)
+        Namespace: ${{ environment.namespace }}
+        ReleaseName: ${{ environment.releaseName }}

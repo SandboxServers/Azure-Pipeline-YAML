@@ -1,0 +1,7 @@
+parameters:
+  chartPath: ''
+
+steps:
+- bash: |
+    helm lint ${{ parameters.chartPath }}
+  displayName: 'Lint Helm chart'

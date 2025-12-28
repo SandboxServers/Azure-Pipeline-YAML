@@ -1,0 +1,17 @@
+parameters:
+  chartName: ''
+  chartPath: ''
+  acrName: ''
+  helmVersion: ''
+  VariableLocation: ''
+
+stages:
+- stage: Build
+  displayName: Build & Publish
+  jobs:
+  - template: ../jobs/publish.yml@self
+    parameters:
+      chartName: ${{ parameters.chartName }}
+      chartPath: ${{ parameters.chartPath }}
+      acrName: ${{ parameters.acrName }}
+      helmVersion: ${{ parameters.helmVersion }}

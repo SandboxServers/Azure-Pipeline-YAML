@@ -1,0 +1,21 @@
+parameters:
+  chartName: ''
+  chartPath: ''
+  acrName: ''
+
+steps:
+- bash: |
+    CHART_VERSION=$(grep '^version:' ${{ parameters.chartPath }}/Chart.yaml | awk '{print $2}')
+    CHART_FILE="${{ parameters.chartName }}-${CHART_VERSION}.tgz"
+
+    echo "=== Publishing Chart ==="
+    echo "Chart: ${{ parameters.chartName }}"
+    echo "Version: $CHART_VERSION"
+    echo "Registry: $(acrLoginServer)"
+    echo "========================"
+
+    helm push "$CHART_FILE" oci://$(acrLoginServer)/helm
+
+    echo "##vso[task.setvariable variable=CHART_VERSION]$CHART_VERSION"
+    echo "✅ Successfully published ${{ parameters.chartName }}:${CHART_VERSION} to ACR"
+  displayName: 'Push Helm chart to ACR'
