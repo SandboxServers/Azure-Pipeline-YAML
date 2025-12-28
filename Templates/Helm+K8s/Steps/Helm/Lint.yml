@@ -24,7 +24,9 @@ steps:
     echo "=========================="
 
     # Run helm lint with optional strict mode
-    LINT_ARGS="${{ parameters.strict }}"
+    LINT_ARGS=""
+    ${{ if eq(parameters['strict'], true) }}:
+      LINT_ARGS="--strict"
     helm lint ${{ parameters.chartPath }} $LINT_ARGS
 
     echo "✅ Helm chart linting passed"

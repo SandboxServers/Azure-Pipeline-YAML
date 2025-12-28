@@ -56,17 +56,25 @@ jobs:
       echo "Server: $ACR_LOGIN_SERVER"
       echo "======================================="
 
+      # Validate Azure CLI is authenticated
+      if ! az account show >/dev/null 2>&1; then
+        echo "❌ Error: Azure CLI is not authenticated"
+        echo "Please ensure Azure Service Connection is configured or run 'az login' locally"
+        exit 1
+      fi
+
       # Set output variable for downstream stages and current job
       echo "##vso[task.setvariable variable=ACR_LOGIN_SERVER;isOutput=true]$ACR_LOGIN_SERVER"
 
       # Login to ACR using Azure CLI
+      # Note: In Azure DevOps, if a service connection is configured,
+      # the agent should already have auth context. The check above
+      # validates this before attempting operations.
       if [ -n "$AZURE_SERVICE_CONNECTION" ]; then
         echo "Using Azure service connection: $AZURE_SERVICE_CONNECTION"
-        az acr login --name $ACR_NAME
-      else
-        echo "Using default Azure authentication"
-        az acr login --name $ACR_NAME
       fi
+
+      az acr login --name $ACR_NAME
 
       # Get access token and login to Helm registry
       ACCESS_TOKEN=$(az acr login --name $ACR_NAME --expose-token --output tsv --query accessToken)

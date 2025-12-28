@@ -38,13 +38,18 @@ steps:
   - bash: |
       set -e  # Exit on error
 
-      # Check if values file exists (if specified)
-      if [ -n "${{ parameters.valuesFile }}" ] && [ ! -f "${{ parameters.valuesFile }}" ]; then
-        echo "⚠️ Warning: Values file not found: ${{ parameters.valuesFile }}"
-        echo "Continuing without values file..."
-        VALUES_ARGS=""
+      # Handle values file - only use if parameter is provided and file exists
+      VALUES_ARGS=""
+      if [ -n "${{ parameters.valuesFile }}" ]; then
+        if [ -f "${{ parameters.valuesFile }}" ]; then
+          VALUES_ARGS="--values ${{ parameters.valuesFile }}"
+          echo "Using values file: ${{ parameters.valuesFile }}"
+        else
+          echo "⚠️ Warning: Values file not found: ${{ parameters.valuesFile }}"
+          echo "Continuing without values file..."
+        fi
       else
-        VALUES_ARGS="--values ${{ parameters.valuesFile }}"
+        echo "ℹ️ No values file specified, using chart defaults"
       fi
 
       # Perform Helm upgrade with retry logic
