@@ -12,7 +12,7 @@ stages:
   displayName: Build & Test
   jobs:
   - ${{ each svc in parameters.services }}:
-    - ${{ if or(eq(parameters.servicesCsvNormalized, ',,'), contains(parameters.servicesCsvNormalized, format(',{0},', svc.id))) }}:
+    - ${{ if or(eq(parameters.servicesCsvNormalized, ',,'), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(svc.id)))) }}:
       - template: ../Jobs/Build.yml
         parameters:
           service: ${{ svc }}

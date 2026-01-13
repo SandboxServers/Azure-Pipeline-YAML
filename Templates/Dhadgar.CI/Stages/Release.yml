@@ -11,7 +11,7 @@ stages:
   condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'), eq('${{ parameters.deploy }}', 'true'))
   jobs:
   - ${{ each svc in parameters.services }}:
-    - ${{ if and(eq(svc.deploy, 'swa'), or(eq(parameters.servicesCsvNormalized, ',,'), contains(parameters.servicesCsvNormalized, format(',{0},', svc.id)))) }}:
+    - ${{ if and(eq(svc.deploy, 'swa'), or(eq(parameters.servicesCsvNormalized, ',,'), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(svc.id))))) }}:
       - job: DeploySwa_${{ replace(svc.id, '.', '_') }}
         displayName: 'Deploy (SWA): ${{ svc.id }}'
         pool:
