@@ -13,8 +13,6 @@ parameters:
 jobs:
 - job: Build_${{ replace(parameters.service.id, '.', '_') }}
   displayName: 'Build: ${{ parameters.service.id }}'
-  pool:
-    vmImage: 'ubuntu-latest'
   variables:
     NUGET_PACKAGES: $(Pipeline.Workspace)/.nuget/packages
     TestResultsDir: $(Agent.TempDirectory)/testresults/${{ replace(parameters.service.id, '.', '_') }}
