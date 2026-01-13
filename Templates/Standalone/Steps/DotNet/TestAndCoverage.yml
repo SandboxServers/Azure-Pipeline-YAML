@@ -5,18 +5,31 @@ parameters:
   resultsDirectory: '$(Agent.TempDirectory)/testresults'
 steps:
 - ${{ if ne(parameters.testProjectPath, '') }}:
-  - task: DotNetCoreCLI@2
-    displayName: 'dotnet test'
-    inputs:
-      command: 'test'
-      projects: ${{ parameters.testProjectPath }}
-      publishTestResults: false
-      arguments: >
-        -c ${{ parameters.buildConfiguration }}
-        --no-build
-        --logger "trx"
-        --results-directory "${{ parameters.resultsDirectory }}"
-        ${{ if eq(parameters.collectCoverage, true) }}: --collect "XPlat Code Coverage"
+  - ${{ if eq(parameters.collectCoverage, true) }}:
+    - task: DotNetCoreCLI@2
+      displayName: 'dotnet test'
+      inputs:
+        command: 'test'
+        projects: ${{ parameters.testProjectPath }}
+        publishTestResults: false
+        arguments: >
+          -c ${{ parameters.buildConfiguration }}
+          --no-build
+          --logger "trx"
+          --results-directory "${{ parameters.resultsDirectory }}"
+          --collect "XPlat Code Coverage"
+  - ${{ if ne(parameters.collectCoverage, true) }}:
+    - task: DotNetCoreCLI@2
+      displayName: 'dotnet test'
+      inputs:
+        command: 'test'
+        projects: ${{ parameters.testProjectPath }}
+        publishTestResults: false
+        arguments: >
+          -c ${{ parameters.buildConfiguration }}
+          --no-build
+          --logger "trx"
+          --results-directory "${{ parameters.resultsDirectory }}"
 - task: PublishTestResults@2
   displayName: 'Publish test results'
   condition: and(succeededOrFailed(), ne('${{ parameters.testProjectPath }}', ''))
