@@ -56,5 +56,5 @@ jobs:
     displayName: 'Publish build outputs (bin/)'
     inputs:
       targetPath: '$(Build.SourcesDirectory)'
-      artifactName: 'src-${{ replace(parameters.service.id, '.', '_') }}'
+      artifactName: "src-${{ replace(parameters.service.id, '.', '_') }}"
       publishLocation: 'pipeline'
