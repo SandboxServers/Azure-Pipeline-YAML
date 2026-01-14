@@ -6,6 +6,13 @@ parameters:
   testRunTitle: ''
 steps:
 - ${{ if ne(parameters.testProjectPath, '') }}:
+  - pwsh: |
+      $path = "${{ parameters.resultsDirectory }}"
+      if (Test-Path $path) {
+        Remove-Item -Recurse -Force $path
+      }
+      New-Item -ItemType Directory -Path $path | Out-Null
+    displayName: 'Clean test results directory'
   - ${{ if eq(parameters.collectCoverage, true) }}:
     - task: DotNetCoreCLI@2
       displayName: 'dotnet test'
