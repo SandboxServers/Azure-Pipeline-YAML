@@ -6,6 +6,4 @@ steps:
   displayName: 'Cache NuGet packages'
   inputs:
     key: 'nuget | ${{ parameters.cacheVersion }} | "$(Agent.OS)" | $(Build.SourcesDirectory)/Directory.Packages.props | $(Build.SourcesDirectory)/global.json | ${{ parameters.keySuffix }}'
-    restoreKeys: |
-      nuget | ${{ parameters.cacheVersion }} | "$(Agent.OS)"
     path: $(NUGET_PACKAGES)
