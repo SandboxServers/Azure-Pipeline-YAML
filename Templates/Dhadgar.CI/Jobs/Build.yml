@@ -14,6 +14,8 @@ parameters:
 jobs:
 - job: Build_${{ replace(parameters.service.id, '.', '_') }}
   displayName: 'Build: ${{ parameters.service.id }}'
+  workspace:
+    clean: all
   variables:
     NUGET_PACKAGES: $(Pipeline.Workspace)/.nuget/packages
     TestResultsDir: $(Agent.TempDirectory)/testresults/${{ replace(parameters.service.id, '.', '_') }}
@@ -58,14 +60,6 @@ jobs:
       $publishDir = "$(Build.ArtifactStagingDirectory)/${{ replace(parameters.service.id, '.', '_') }}"
       Write-Host "##vso[task.setvariable variable=PublishDir]$publishDir"
     displayName: 'Resolve project directory'
-
-  - pwsh: |
-      if (Test-Path -LiteralPath "$(PublishDir)") {
-        Remove-Item -LiteralPath "$(PublishDir)" -Recurse -Force
-      }
-      New-Item -ItemType Directory -Path "$(PublishDir)" -Force | Out-Null
-    displayName: 'Clean publish directory'
-    condition: and(succeeded(), eq('${{ parameters.publishArtifacts }}', 'true'))
 
   - task: DotNetCoreCLI@2
     displayName: 'dotnet publish'
