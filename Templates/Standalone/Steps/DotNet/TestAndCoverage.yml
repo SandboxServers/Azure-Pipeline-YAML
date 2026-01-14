@@ -16,25 +16,24 @@ steps:
   - ${{ if eq(parameters.collectCoverage, true) }}:
     - pwsh: |
         $settingsPath = "$(Agent.TempDirectory)/coverlet.runsettings"
-        @'
-<?xml version="1.0" encoding="utf-8"?>
-<RunSettings>
-  <DataCollectionRunSettings>
-    <DataCollectors>
-      <DataCollector friendlyName="XPlat Code Coverage">
-        <Configuration>
-          <Format>cobertura</Format>
-          <Exclude>[Dhadgar.*]Microsoft.AspNetCore.OpenApi.Generated*</Exclude>
-          <ExcludeByFile>**/Migrations/*.cs;**/*.g.cs;**/*.g.i.cs;**/*.Designer.cs;**/*.Generated.cs;**/*.AssemblyInfo.cs;**/.NETCoreApp,Version=*/.NETCoreApp,Version*.AssemblyAttributes.cs</ExcludeByFile>
-          <ExcludeByAttribute>CompilerGeneratedAttribute,GeneratedCodeAttribute</ExcludeByAttribute>
-          <IncludeTestAssembly>false</IncludeTestAssembly>
-          <UseSourceLink>true</UseSourceLink>
-        </Configuration>
-      </DataCollector>
-    </DataCollectors>
-  </DataCollectionRunSettings>
-</RunSettings>
-'@ | Set-Content -Path $settingsPath -Encoding UTF8
+        $xml = '<?xml version="1.0" encoding="utf-8"?>'
+        $xml += '<RunSettings>'
+        $xml += '<DataCollectionRunSettings>'
+        $xml += '<DataCollectors>'
+        $xml += '<DataCollector friendlyName="XPlat Code Coverage">'
+        $xml += '<Configuration>'
+        $xml += '<Format>cobertura</Format>'
+        $xml += '<Exclude>[Dhadgar.*]Microsoft.AspNetCore.OpenApi.Generated*</Exclude>'
+        $xml += '<ExcludeByFile>**/Migrations/*.cs;**/*.g.cs;**/*.g.i.cs;**/*.Designer.cs;**/*.Generated.cs;**/*.AssemblyInfo.cs;**/.NETCoreApp,Version=*/.NETCoreApp,Version*.AssemblyAttributes.cs</ExcludeByFile>'
+        $xml += '<ExcludeByAttribute>CompilerGeneratedAttribute,GeneratedCodeAttribute</ExcludeByAttribute>'
+        $xml += '<IncludeTestAssembly>false</IncludeTestAssembly>'
+        $xml += '<UseSourceLink>true</UseSourceLink>'
+        $xml += '</Configuration>'
+        $xml += '</DataCollector>'
+        $xml += '</DataCollectors>'
+        $xml += '</DataCollectionRunSettings>'
+        $xml += '</RunSettings>'
+        $xml | Set-Content -Path $settingsPath -Encoding UTF8
         Write-Host "Using coverlet settings at $settingsPath"
       displayName: 'Write coverlet runsettings'
     - task: DotNetCoreCLI@2
