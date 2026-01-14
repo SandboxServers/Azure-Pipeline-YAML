@@ -32,6 +32,7 @@ stages:
         environment: 'meridian-${{ parameters.environment }}'
         pool:
           name: 'Sandbox Servers Agents'
+        download: none
         strategy:
           runOnce:
             deploy:

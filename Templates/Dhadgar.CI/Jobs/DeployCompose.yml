@@ -23,6 +23,7 @@ jobs:
       ${{ if ne(parameters.agentDemand, '') }}:
         demands:
           - ${{ parameters.agentDemand }}
+    download: none
     strategy:
       runOnce:
         deploy:
