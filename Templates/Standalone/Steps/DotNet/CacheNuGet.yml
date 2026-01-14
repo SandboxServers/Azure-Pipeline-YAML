@@ -7,5 +7,5 @@ steps:
   inputs:
     key: 'nuget | ${{ parameters.cacheVersion }} | "$(Agent.OS)" | $(Build.SourcesDirectory)/Directory.Packages.props | $(Build.SourcesDirectory)/global.json | ${{ parameters.keySuffix }}'
     restoreKeys: |
-      nuget | "$(Agent.OS)"
+      nuget | ${{ parameters.cacheVersion }} | "$(Agent.OS)"
     path: $(NUGET_PACKAGES)
