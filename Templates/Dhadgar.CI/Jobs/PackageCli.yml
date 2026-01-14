@@ -81,5 +81,5 @@ jobs:
         displayName: 'Publish CLI archives'
         inputs:
           targetPath: '$(Build.ArtifactStagingDirectory)/cli-archives'
-          artifactName: 'cli-${{ replace(parameters.service.id, '.', '_') }}'
+          artifactName: cli-${{ replace(parameters.service.id, '.', '_') }}
           publishLocation: 'pipeline'

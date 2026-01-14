@@ -198,5 +198,5 @@ jobs:
         displayName: 'Publish Agent archives'
         inputs:
           targetPath: '$(Build.ArtifactStagingDirectory)/agent-archives'
-          artifactName: 'agent-${{ replace(parameters.service.id, '.', '_') }}'
+          artifactName: agent-${{ replace(parameters.service.id, '.', '_') }}
           publishLocation: 'pipeline'
