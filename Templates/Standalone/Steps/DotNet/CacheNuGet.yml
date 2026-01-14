@@ -1,6 +1,6 @@
 parameters:
   keySuffix: ''
-  cacheVersion: 'v2'
+  cacheVersion: 'v3'
 steps:
 - task: Cache@2
   displayName: 'Cache NuGet packages'
