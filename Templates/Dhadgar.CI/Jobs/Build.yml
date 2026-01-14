@@ -59,6 +59,14 @@ jobs:
       Write-Host "##vso[task.setvariable variable=PublishDir]$publishDir"
     displayName: 'Resolve project directory'
 
+  - pwsh: |
+      if (Test-Path -LiteralPath "$(PublishDir)") {
+        Remove-Item -LiteralPath "$(PublishDir)" -Recurse -Force
+      }
+      New-Item -ItemType Directory -Path "$(PublishDir)" -Force | Out-Null
+    displayName: 'Clean publish directory'
+    condition: and(succeeded(), eq('${{ parameters.publishArtifacts }}', 'true'))
+
   - task: DotNetCoreCLI@2
     displayName: 'dotnet publish'
     condition: and(succeeded(), eq('${{ parameters.publishArtifacts }}', 'true'))
