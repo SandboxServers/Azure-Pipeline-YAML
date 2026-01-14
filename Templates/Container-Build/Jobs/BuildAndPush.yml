@@ -1,0 +1,47 @@
+# Build and Push Docker Image Job
+# Builds a single Docker image and pushes to ACR
+
+parameters:
+  serviceName: ''
+  imageName: ''
+  dockerfilePath: ''
+  acrName: ''
+  acrServiceConnection: ''
+  pushLatest: true
+  buildContext: '$(Build.SourcesDirectory)'
+  buildArgs: ''
+
+jobs:
+  - job: Build_${{ replace(parameters.serviceName, '.', '_') }}
+    displayName: 'Build: ${{ parameters.serviceName }}'
+    pool:
+      name: 'Sandbox Servers Agents'
+    steps:
+      - checkout: self
+        fetchDepth: 1
+
+      - task: Docker@2
+        displayName: 'Build image'
+        inputs:
+          containerRegistry: ${{ parameters.acrServiceConnection }}
+          repository: ${{ parameters.imageName }}
+          command: 'build'
+          Dockerfile: ${{ parameters.dockerfilePath }}
+          buildContext: ${{ parameters.buildContext }}
+          tags: |
+            $(Build.BuildId)
+            ${{ if eq(parameters.pushLatest, true) }}:
+            latest
+          ${{ if ne(parameters.buildArgs, '') }}:
+            arguments: ${{ parameters.buildArgs }}
+
+      - task: Docker@2
+        displayName: 'Push image'
+        inputs:
+          containerRegistry: ${{ parameters.acrServiceConnection }}
+          repository: ${{ parameters.imageName }}
+          command: 'push'
+          tags: |
+            $(Build.BuildId)
+            ${{ if eq(parameters.pushLatest, true) }}:
+            latest

@@ -1,0 +1,117 @@
+# Cloudflare DNS Configuration Step
+# Configures DNS records in Cloudflare for the environment
+
+parameters:
+  environment: 'dev'
+  apiToken: ''
+  zoneId: ''  # Optional, will use CLOUDFLARE_ZONE_ID variable if not set
+
+steps:
+  - task: Bash@3
+    displayName: 'Configure Cloudflare DNS'
+    inputs:
+      targetType: 'inline'
+      script: |
+        set -euo pipefail
+
+        ENV="${{ parameters.environment }}"
+        API_TOKEN="${{ parameters.apiToken }}"
+        ZONE_ID="${{ coalesce(parameters.zoneId, '$(CLOUDFLARE_ZONE_ID)') }}"
+
+        if [ -z "$API_TOKEN" ] || [ -z "$ZONE_ID" ]; then
+          echo "Cloudflare API token or Zone ID not configured. Skipping DNS configuration."
+          exit 0
+        fi
+
+        # Function to create/update DNS record
+        configure_record() {
+          local name="$1"
+          local content="$2"
+          local type="${3:-A}"
+          local proxied="${4:-true}"
+
+          echo "Configuring $type record: $name -> $content (proxied: $proxied)"
+
+          # Check if record exists
+          existing=$(curl -s -X GET \
+            "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records?name=${name}&type=${type}" \
+            -H "Authorization: Bearer ${API_TOKEN}" \
+            -H "Content-Type: application/json" | jq -r '.result[0].id // empty')
+
+          if [ -n "$existing" ]; then
+            # Update existing record
+            result=$(curl -s -X PUT \
+              "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records/${existing}" \
+              -H "Authorization: Bearer ${API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              --data "{\"type\":\"${type}\",\"name\":\"${name}\",\"content\":\"${content}\",\"ttl\":1,\"proxied\":${proxied}}")
+            echo "  Updated existing record"
+          else
+            # Create new record
+            result=$(curl -s -X POST \
+              "https://api.cloudflare.com/client/v4/zones/${ZONE_ID}/dns_records" \
+              -H "Authorization: Bearer ${API_TOKEN}" \
+              -H "Content-Type: application/json" \
+              --data "{\"type\":\"${type}\",\"name\":\"${name}\",\"content\":\"${content}\",\"ttl\":1,\"proxied\":${proxied}}")
+            echo "  Created new record"
+          fi
+
+          # Check for errors
+          success=$(echo "$result" | jq -r '.success')
+          if [ "$success" != "true" ]; then
+            echo "  Warning: $(echo "$result" | jq -r '.errors[0].message // "Unknown error"')"
+          fi
+        }
+
+        # Get current public IP for dev environment
+        if [ "$ENV" = "dev" ]; then
+          PUBLIC_IP=$(curl -sf https://api.ipify.org || curl -sf https://ifconfig.me || echo "")
+          if [ -z "$PUBLIC_IP" ]; then
+            echo "Could not determine public IP. Skipping DNS configuration."
+            exit 0
+          fi
+          echo "Detected public IP: $PUBLIC_IP"
+        fi
+
+        # Configure DNS based on environment
+        case "$ENV" in
+          dev)
+            # Dev environment - point to local machine
+            configure_record "dev.meridianconsole.com" "$PUBLIC_IP" "A" "true"
+            configure_record "*.dev.meridianconsole.com" "dev.meridianconsole.com" "CNAME" "true"
+            configure_record "api.dev.meridianconsole.com" "dev.meridianconsole.com" "CNAME" "true"
+            ;;
+
+          staging)
+            STAGING_IP="${STAGING_IP:-}"
+            if [ -n "$STAGING_IP" ]; then
+              configure_record "staging.meridianconsole.com" "$STAGING_IP" "A" "true"
+              configure_record "*.staging.meridianconsole.com" "staging.meridianconsole.com" "CNAME" "true"
+              configure_record "api.staging.meridianconsole.com" "staging.meridianconsole.com" "CNAME" "true"
+            else
+              echo "STAGING_IP not set. Skipping staging DNS configuration."
+            fi
+            ;;
+
+          prod)
+            PROD_IP="${PROD_IP:-}"
+            if [ -n "$PROD_IP" ]; then
+              configure_record "meridianconsole.com" "$PROD_IP" "A" "true"
+              configure_record "www.meridianconsole.com" "meridianconsole.com" "CNAME" "true"
+              configure_record "*.meridianconsole.com" "meridianconsole.com" "CNAME" "true"
+              configure_record "api.meridianconsole.com" "meridianconsole.com" "CNAME" "true"
+            else
+              echo "PROD_IP not set. Skipping production DNS configuration."
+            fi
+            ;;
+
+          *)
+            echo "Unknown environment: $ENV"
+            exit 1
+            ;;
+        esac
+
+        echo "DNS configuration complete for $ENV environment."
+    env:
+      STAGING_IP: $(STAGING_IP)
+      PROD_IP: $(PROD_IP)

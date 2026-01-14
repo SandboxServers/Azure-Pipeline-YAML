@@ -1,0 +1,64 @@
+# Container Build Pipeline Template
+# Builds Docker images for microservices and pushes to Azure Container Registry
+#
+# Usage:
+#   extends:
+#     template: Templates/Container-Build/Pipeline/Pipeline.yml@pipelinePatterns
+#     parameters:
+#       acrName: 'myacr'
+#       acrServiceConnection: 'myacr-connection'
+#       services:
+#         - name: Gateway
+#           imageName: myapp/gateway
+#           dockerfilePath: src/Gateway/Dockerfile
+
+parameters:
+  - name: acrName
+    type: string
+    displayName: 'Azure Container Registry name'
+
+  - name: acrServiceConnection
+    type: string
+    displayName: 'ACR service connection name'
+
+  - name: services
+    type: object
+    default: []
+    displayName: 'List of services to build'
+
+  - name: pushLatest
+    type: boolean
+    default: true
+    displayName: 'Also push with latest tag'
+
+  - name: cleanup
+    type: boolean
+    default: true
+    displayName: 'Clean up old images'
+
+  - name: keepCount
+    type: number
+    default: 2
+    displayName: 'Number of images to keep per service'
+
+  - name: buildContext
+    type: string
+    default: '$(Build.SourcesDirectory)'
+    displayName: 'Docker build context path'
+
+stages:
+  - template: ../Stages/Build.yml
+    parameters:
+      acrName: ${{ parameters.acrName }}
+      acrServiceConnection: ${{ parameters.acrServiceConnection }}
+      services: ${{ parameters.services }}
+      pushLatest: ${{ parameters.pushLatest }}
+      buildContext: ${{ parameters.buildContext }}
+
+  - ${{ if eq(parameters.cleanup, true) }}:
+    - template: ../Stages/Cleanup.yml
+      parameters:
+        acrName: ${{ parameters.acrName }}
+        acrServiceConnection: ${{ parameters.acrServiceConnection }}
+        services: ${{ parameters.services }}
+        keepCount: ${{ parameters.keepCount }}

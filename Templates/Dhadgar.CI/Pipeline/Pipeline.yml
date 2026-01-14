@@ -23,8 +23,38 @@ parameters:
 - name: deploy
   type: boolean
   default: true
+# Infrastructure provisioning parameters
+- name: provisionInfrastructure
+  type: boolean
+  default: false
+- name: provisionDns
+  type: boolean
+  default: false
+- name: environment
+  type: string
+  default: 'dev'
+  values:
+    - dev
+    - staging
+    - prod
+- name: azureServiceConnection
+  type: string
+  default: 'Azure-Sub'
+- name: acrServiceConnection
+  type: string
+  default: 'meridianconsoleacr'
+- name: acrLoginServer
+  type: string
+  default: 'meridianconsoleacr-etdvg4cthscffqdf.azurecr.io'
+- name: cloudflareApiToken
+  type: string
+  default: ''
+- name: tenantId
+  type: string
+  default: ''
 
 stages:
+# Build & Test Stage
 - template: ../Stages/Build.yml
   parameters:
     services: ${{ parameters.services }}
@@ -35,9 +65,44 @@ stages:
     runTests: ${{ parameters.runTests }}
     collectCoverage: ${{ parameters.collectCoverage }}
 
+# Package Stage (Container builds + binary packaging)
+# Runs after Build, builds Docker images and packages CLI/Agent binaries
+- template: ../Stages/Package.yml
+  parameters:
+    services: ${{ parameters.services }}
+    servicesCsvNormalized: ${{ parameters.servicesCsvNormalized }}
+    buildConfiguration: ${{ parameters.buildConfiguration }}
+    acrServiceConnection: ${{ parameters.acrServiceConnection }}
+    acrLoginServer: ${{ parameters.acrLoginServer }}
+
+# Infrastructure Provisioning Stage (optional)
+- ${{ if eq(parameters.provisionInfrastructure, true) }}:
+  - template: ../Stages/Infrastructure.yml
+    parameters:
+      environment: ${{ parameters.environment }}
+      azureServiceConnection: ${{ parameters.azureServiceConnection }}
+      cloudflareApiToken: ${{ parameters.cloudflareApiToken }}
+      provisionAzure: ${{ parameters.provisionInfrastructure }}
+      provisionDns: ${{ parameters.provisionDns }}
+      tenantId: ${{ parameters.tenantId }}
+
+# Release Stage (SWA deployments)
 - template: ../Stages/Release.yml
   parameters:
     services: ${{ parameters.services }}
     servicesCsvNormalized: ${{ parameters.servicesCsvNormalized }}
     buildConfiguration: ${{ parameters.buildConfiguration }}
     deploy: ${{ parameters.deploy }}
+
+# Deploy Stage (Compose, CLI, Agent deployments)
+# Downloads artifacts from Package stage and deploys to target environments
+- ${{ if eq(parameters.deploy, true) }}:
+  - template: ../Stages/Deploy.yml
+    parameters:
+      services: ${{ parameters.services }}
+      servicesCsvNormalized: ${{ parameters.servicesCsvNormalized }}
+      environment: ${{ parameters.environment }}
+      azureServiceConnection: ${{ parameters.azureServiceConnection }}
+      acrServiceConnection: ${{ parameters.acrServiceConnection }}
+      acrLoginServer: ${{ parameters.acrLoginServer }}
+      deploy: ${{ parameters.deploy }}

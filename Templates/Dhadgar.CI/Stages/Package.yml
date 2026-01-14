@@ -1,0 +1,52 @@
+# Package Stage
+# Builds Docker containers and packages binaries after successful Build stage
+#
+# This stage handles:
+# - Building Docker images for 'compose' services and pushing to ACR
+# - Packaging 'cli' binaries for multiple platforms
+# - Packaging 'agent' binaries with install scripts
+
+parameters:
+  services: []
+  servicesCsvNormalized: ',,'
+  buildConfiguration: 'Release'
+  acrServiceConnection: 'meridianconsoleacr'
+  acrLoginServer: 'meridianconsoleacr-etdvg4cthscffqdf.azurecr.io'
+
+stages:
+  - stage: Package
+    displayName: 'Package & Containerize'
+    dependsOn: Build
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+    jobs:
+      # Placeholder job (ensures stage has at least one job)
+      - job: Package_NoOp
+        displayName: 'Package: no targets'
+        condition: false
+        steps:
+          - script: echo "No package targets."
+
+      # Build Docker images for compose services
+      - ${{ each svc in parameters.services }}:
+        - ${{ if and(eq(svc.deploy, 'compose'), or(eq(parameters.servicesCsvNormalized, ',,'), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(svc.id))), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(replace(svc.id, 'Dhadgar.', '')))))) }}:
+          - template: ../Jobs/BuildContainer.yml
+            parameters:
+              service: ${{ svc }}
+              acrServiceConnection: ${{ parameters.acrServiceConnection }}
+              acrLoginServer: ${{ parameters.acrLoginServer }}
+
+      # Package CLI binaries
+      - ${{ each svc in parameters.services }}:
+        - ${{ if and(eq(svc.deploy, 'cli'), or(eq(parameters.servicesCsvNormalized, ',,'), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(svc.id))), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(replace(svc.id, 'Dhadgar.', '')))))) }}:
+          - template: ../Jobs/PackageCli.yml
+            parameters:
+              service: ${{ svc }}
+              buildConfiguration: ${{ parameters.buildConfiguration }}
+
+      # Package Agent binaries
+      - ${{ each svc in parameters.services }}:
+        - ${{ if and(eq(svc.deploy, 'agent'), or(eq(parameters.servicesCsvNormalized, ',,'), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(svc.id))), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(replace(svc.id, 'Dhadgar.', '')))))) }}:
+          - template: ../Jobs/PackageAgent.yml
+            parameters:
+              service: ${{ svc }}
+              buildConfiguration: ${{ parameters.buildConfiguration }}

@@ -1,0 +1,83 @@
+# Deploy Stage
+# Deploys Meridian Console services to various targets
+#
+# Deployment types:
+#   - compose: Docker Compose deployment to self-hosted environment (uses images from Package stage)
+#   - swa: Azure Static Web Apps (handled in Release.yml)
+#   - cli: CLI binary distribution to GitHub Releases / storage (uses artifacts from Package stage)
+#   - agent: Agent binary distribution (uses artifacts from Package stage)
+
+parameters:
+  services: []
+  servicesCsvNormalized: ',,'
+  environment: 'dev'
+  azureServiceConnection: 'Azure-Sub'
+  acrServiceConnection: 'meridianconsoleacr'
+  acrLoginServer: 'meridianconsoleacr-etdvg4cthscffqdf.azurecr.io'
+  deploy: true
+  # Compose deployment settings
+  composeProjectPath: 'deploy/compose'
+  composeFile: 'docker-compose.services.acr.yml'
+  infraComposeFile: 'docker-compose.dev.yml'
+
+stages:
+  - stage: Deploy_${{ parameters.environment }}
+    displayName: 'Deploy (${{ parameters.environment }})'
+    dependsOn:
+      - Package  # Depends on Package stage for container images and binary artifacts
+      - ${{ if eq(parameters.environment, 'staging') }}:
+        - Deploy_dev
+      - ${{ if eq(parameters.environment, 'prod') }}:
+        - Deploy_staging
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'), eq('${{ parameters.deploy }}', 'true'))
+    variables:
+      Environment: ${{ parameters.environment }}
+    jobs:
+      # Placeholder job (always skipped, ensures stage has at least one job)
+      - job: Deploy_NoOp
+        displayName: 'Deploy: no targets'
+        condition: false
+        steps:
+          - script: echo "No deployment targets selected."
+
+      # Docker Compose Deployment (for dev environment on self-hosted agents)
+      - ${{ each svc in parameters.services }}:
+        - ${{ if and(eq(svc.deploy, 'compose'), or(eq(parameters.servicesCsvNormalized, ',,'), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(svc.id))), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(replace(svc.id, 'Dhadgar.', '')))))) }}:
+          - template: ../Jobs/DeployCompose.yml
+            parameters:
+              serviceName: ${{ svc.id }}
+              environment: ${{ parameters.environment }}
+              acrServiceConnection: ${{ parameters.acrServiceConnection }}
+              acrLoginServer: ${{ parameters.acrLoginServer }}
+              composeProjectPath: ${{ parameters.composeProjectPath }}
+              composeFile: ${{ parameters.composeFile }}
+              infraComposeFile: ${{ parameters.infraComposeFile }}
+              ${{ if svc.compose }}:
+                serviceName: ${{ coalesce(svc.compose.serviceName, replace(lower(svc.id), 'dhadgar.', '')) }}
+
+      # CLI Distribution
+      - ${{ each svc in parameters.services }}:
+        - ${{ if and(eq(svc.deploy, 'cli'), or(eq(parameters.servicesCsvNormalized, ',,'), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(svc.id))), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(replace(svc.id, 'Dhadgar.', '')))))) }}:
+          - template: ../Jobs/DeployCli.yml
+            parameters:
+              serviceName: ${{ svc.id }}
+              environment: ${{ parameters.environment }}
+              projectPath: ${{ svc.projectPath }}
+              ${{ if svc.cli }}:
+                runtimes: ${{ coalesce(svc.cli.runtimes, 'win-x64;linux-x64;osx-x64') }}
+                publishToGitHub: ${{ coalesce(svc.cli.publishToGitHub, false) }}
+                storageAccount: ${{ svc.cli.storageAccount }}
+                containerName: ${{ svc.cli.containerName }}
+
+      # Agent Distribution
+      - ${{ each svc in parameters.services }}:
+        - ${{ if and(eq(svc.deploy, 'agent'), or(eq(parameters.servicesCsvNormalized, ',,'), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(svc.id))), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(replace(svc.id, 'Dhadgar.', '')))))) }}:
+          - template: ../Jobs/DeployAgent.yml
+            parameters:
+              serviceName: ${{ svc.id }}
+              environment: ${{ parameters.environment }}
+              projectPath: ${{ svc.projectPath }}
+              ${{ if svc.agent }}:
+                runtimes: ${{ coalesce(svc.agent.runtimes, 'win-x64;linux-x64') }}
+                storageAccount: ${{ svc.agent.storageAccount }}
+                containerName: ${{ svc.agent.containerName }}

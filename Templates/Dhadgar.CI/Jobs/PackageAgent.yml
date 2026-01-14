@@ -1,0 +1,202 @@
+# Package Agent Job
+# Builds self-contained agent binaries with install scripts
+#
+# Depends on the Build job completing successfully for this service
+
+parameters:
+  service:
+    id: ''
+    projectPath: ''
+    deploy: ''
+    agent:
+      runtimes: 'win-x64;linux-x64'
+  buildConfiguration: 'Release'
+
+jobs:
+  - job: PackageAgent_${{ replace(parameters.service.id, '.', '_') }}
+    displayName: 'Package Agent: ${{ parameters.service.id }}'
+    dependsOn: Build_${{ replace(parameters.service.id, '.', '_') }}
+    condition: succeeded()
+    pool:
+      name: 'Sandbox Servers Agents'
+    variables:
+      agentName: ${{ replace(lower(parameters.service.id), 'dhadgar.', '') }}
+    steps:
+      - checkout: self
+        fetchDepth: 1
+
+      - task: UseDotNet@2
+        displayName: 'Use .NET SDK'
+        inputs:
+          packageType: 'sdk'
+          version: '10.0.x'
+          includePreviewVersions: true
+
+      # Build agent for each runtime with install scripts
+      - pwsh: |
+          $runtimes = "${{ coalesce(parameters.service.agent.runtimes, 'win-x64;linux-x64') }}".Split(';')
+          $projectPath = '${{ parameters.service.projectPath }}'
+          $agentName = '$(agentName)'
+          $serviceId = '${{ parameters.service.id }}'
+          $config = '${{ parameters.buildConfiguration }}'
+          $stagingDir = '$(Build.ArtifactStagingDirectory)'
+
+          foreach ($runtime in $runtimes) {
+            Write-Host "Building agent for $runtime..."
+
+            $outputDir = Join-Path $stagingDir "agent-$agentName" $runtime
+
+            dotnet publish $projectPath `
+              -c $config `
+              -r $runtime `
+              --self-contained true `
+              -p:PublishSingleFile=true `
+              -p:PublishTrimmed=false `
+              -o $outputDir
+
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "Failed to build for $runtime"
+              exit 1
+            }
+
+            # Add install script
+            if ($runtime -like 'win-*') {
+              # Windows install script
+              $installScript = @'
+          #Requires -RunAsAdministrator
+          param(
+              [string]$InstallPath = "$env:ProgramFiles\MeridianConsole\Agent",
+              [string]$ServiceName = "MeridianAgent"
+          )
+
+          Write-Host "Installing Meridian Console Agent..."
+
+          # Create install directory
+          New-Item -ItemType Directory -Force -Path $InstallPath | Out-Null
+
+          # Copy files
+          Copy-Item -Path "$PSScriptRoot\*" -Destination $InstallPath -Recurse -Force -Exclude "install.ps1"
+
+          # Find the executable
+          $exeName = Get-ChildItem -Path $InstallPath -Filter "*.exe" | Where-Object { $_.Name -notlike "*install*" } | Select-Object -First 1
+          if (-not $exeName) {
+              Write-Error "Could not find agent executable"
+              exit 1
+          }
+          $exePath = Join-Path $InstallPath $exeName.Name
+
+          # Register as Windows service
+          if (Get-Service -Name $ServiceName -ErrorAction SilentlyContinue) {
+              Write-Host "Stopping existing service..."
+              Stop-Service -Name $ServiceName -Force -ErrorAction SilentlyContinue
+              sc.exe delete $ServiceName | Out-Null
+              Start-Sleep -Seconds 2
+          }
+
+          Write-Host "Creating service..."
+          New-Service -Name $ServiceName `
+              -BinaryPathName $exePath `
+              -DisplayName "Meridian Console Agent" `
+              -StartupType Automatic `
+              -Description "Meridian Console game server management agent"
+
+          Write-Host ""
+          Write-Host "Agent installed successfully!"
+          Write-Host "Configuration: $InstallPath\appsettings.json"
+          Write-Host ""
+          Write-Host "To start the service:"
+          Write-Host "  Start-Service $ServiceName"
+          '@
+              $installScript | Out-File -FilePath (Join-Path $outputDir "install.ps1") -Encoding UTF8
+            }
+            else {
+              # Linux install script
+              $installScript = @'
+          #!/bin/bash
+          set -euo pipefail
+
+          INSTALL_PATH="${1:-/opt/meridian/agent}"
+          SERVICE_NAME="meridian-agent"
+          SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+          echo "Installing Meridian Console Agent..."
+
+          # Create install directory
+          sudo mkdir -p "$INSTALL_PATH"
+
+          # Copy files (exclude install script)
+          for f in "$SCRIPT_DIR"/*; do
+            if [[ "$(basename "$f")" != "install.sh" ]]; then
+              sudo cp -r "$f" "$INSTALL_PATH/"
+            fi
+          done
+
+          # Find and make executable
+          AGENT_EXE=$(find "$INSTALL_PATH" -maxdepth 1 -type f -executable -o -type f -name "Dhadgar.Agent.*" | head -1)
+          if [ -z "$AGENT_EXE" ]; then
+            # Try to find any file without extension that looks like the agent
+            AGENT_EXE=$(find "$INSTALL_PATH" -maxdepth 1 -type f ! -name "*.*" | head -1)
+          fi
+
+          if [ -n "$AGENT_EXE" ]; then
+            sudo chmod +x "$AGENT_EXE"
+          else
+            echo "Warning: Could not find agent executable"
+          fi
+
+          # Create systemd service
+          sudo tee "/etc/systemd/system/${SERVICE_NAME}.service" > /dev/null << EOF
+          [Unit]
+          Description=Meridian Console Agent
+          After=network.target
+
+          [Service]
+          Type=simple
+          ExecStart=${AGENT_EXE:-$INSTALL_PATH/Dhadgar.Agent.Linux}
+          WorkingDirectory=${INSTALL_PATH}
+          Restart=always
+          RestartSec=10
+          User=root
+
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+
+          sudo systemctl daemon-reload
+
+          echo ""
+          echo "Agent installed successfully!"
+          echo "Configuration: $INSTALL_PATH/appsettings.json"
+          echo ""
+          echo "To start the service:"
+          echo "  sudo systemctl enable --now $SERVICE_NAME"
+          '@
+              $installScript | Out-File -FilePath (Join-Path $outputDir "install.sh") -Encoding UTF8 -NoNewline
+            }
+
+            # Create archive
+            $archiveDir = Join-Path $stagingDir "agent-archives"
+            New-Item -ItemType Directory -Force -Path $archiveDir | Out-Null
+
+            if ($runtime -like 'win-*') {
+              $archivePath = Join-Path $archiveDir "$agentName-$runtime.zip"
+              Compress-Archive -Path "$outputDir/*" -DestinationPath $archivePath -Force
+            } else {
+              $archivePath = Join-Path $archiveDir "$agentName-$runtime.tar.gz"
+              Push-Location $outputDir
+              # Make install.sh executable in archive
+              chmod +x install.sh 2>$null || true
+              tar -czf $archivePath *
+              Pop-Location
+            }
+
+            Write-Host "Created archive: $archivePath"
+          }
+        displayName: 'Build Agent for all platforms'
+
+      - task: PublishPipelineArtifact@1
+        displayName: 'Publish Agent archives'
+        inputs:
+          targetPath: '$(Build.ArtifactStagingDirectory)/agent-archives'
+          artifactName: 'agent-${{ replace(parameters.service.id, '.', '_') }}'
+          publishLocation: 'pipeline'

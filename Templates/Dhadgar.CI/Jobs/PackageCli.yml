@@ -1,0 +1,85 @@
+# Package CLI Job
+# Builds self-contained CLI binaries for multiple platforms
+#
+# Depends on the Build job completing successfully for this service
+
+parameters:
+  service:
+    id: ''
+    projectPath: ''
+    deploy: ''
+    cli:
+      runtimes: 'win-x64;linux-x64;osx-x64'
+  buildConfiguration: 'Release'
+
+jobs:
+  - job: PackageCli_${{ replace(parameters.service.id, '.', '_') }}
+    displayName: 'Package CLI: ${{ parameters.service.id }}'
+    dependsOn: Build_${{ replace(parameters.service.id, '.', '_') }}
+    condition: succeeded()
+    pool:
+      name: 'Sandbox Servers Agents'
+    variables:
+      cliName: ${{ replace(lower(parameters.service.id), 'dhadgar.', '') }}
+    steps:
+      - checkout: self
+        fetchDepth: 1
+
+      - task: UseDotNet@2
+        displayName: 'Use .NET SDK'
+        inputs:
+          packageType: 'sdk'
+          version: '10.0.x'
+          includePreviewVersions: true
+
+      # Parse runtimes and build for each
+      - pwsh: |
+          $runtimes = "${{ coalesce(parameters.service.cli.runtimes, 'win-x64;linux-x64;osx-x64') }}".Split(';')
+          $projectPath = '${{ parameters.service.projectPath }}'
+          $cliName = '$(cliName)'
+          $config = '${{ parameters.buildConfiguration }}'
+          $stagingDir = '$(Build.ArtifactStagingDirectory)'
+
+          foreach ($runtime in $runtimes) {
+            Write-Host "Building for $runtime..."
+
+            $outputDir = Join-Path $stagingDir "cli-$cliName" $runtime
+
+            dotnet publish $projectPath `
+              -c $config `
+              -r $runtime `
+              --self-contained true `
+              -p:PublishSingleFile=true `
+              -p:PublishTrimmed=true `
+              -p:IncludeNativeLibrariesForSelfExtract=true `
+              -o $outputDir
+
+            if ($LASTEXITCODE -ne 0) {
+              Write-Error "Failed to build for $runtime"
+              exit 1
+            }
+
+            # Create archive
+            $archiveDir = Join-Path $stagingDir "cli-archives"
+            New-Item -ItemType Directory -Force -Path $archiveDir | Out-Null
+
+            if ($runtime -like 'win-*') {
+              $archivePath = Join-Path $archiveDir "$cliName-$runtime.zip"
+              Compress-Archive -Path "$outputDir/*" -DestinationPath $archivePath -Force
+            } else {
+              $archivePath = Join-Path $archiveDir "$cliName-$runtime.tar.gz"
+              Push-Location $outputDir
+              tar -czf $archivePath *
+              Pop-Location
+            }
+
+            Write-Host "Created archive: $archivePath"
+          }
+        displayName: 'Build CLI for all platforms'
+
+      - task: PublishPipelineArtifact@1
+        displayName: 'Publish CLI archives'
+        inputs:
+          targetPath: '$(Build.ArtifactStagingDirectory)/cli-archives'
+          artifactName: 'cli-${{ replace(parameters.service.id, '.', '_') }}'
+          publishLocation: 'pipeline'

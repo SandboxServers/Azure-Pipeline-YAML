@@ -1,0 +1,104 @@
+# Deploy CLI Job
+# Downloads CLI artifacts from Package stage and distributes to storage/GitHub
+#
+# This job expects artifacts from PackageCli job in Package stage
+
+parameters:
+  serviceName: ''
+  environment: 'dev'
+  projectPath: ''  # Not used for building anymore, kept for compatibility
+  runtimes: 'win-x64;linux-x64;osx-x64'  # Not used for building anymore
+  publishToGitHub: false
+  storageAccount: ''
+  containerName: 'cli-releases'
+  azureServiceConnection: 'Azure-Sub'
+
+jobs:
+  - deployment: DeployCli_${{ replace(parameters.serviceName, '.', '_') }}
+    displayName: 'Deploy (CLI): ${{ parameters.serviceName }}'
+    environment: 'meridian-${{ parameters.environment }}'
+    pool:
+      name: 'Sandbox Servers Agents'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            # Download CLI artifacts from Package stage
+            - task: DownloadPipelineArtifact@2
+              displayName: 'Download CLI artifacts'
+              inputs:
+                buildType: 'current'
+                artifactName: 'cli-${{ replace(parameters.serviceName, '.', '_') }}'
+                targetPath: '$(Pipeline.Workspace)/cli-artifacts'
+
+            # Upload to Azure Storage (if configured)
+            - ${{ if ne(parameters.storageAccount, '') }}:
+              - task: AzureCLI@2
+                displayName: 'Upload to Azure Storage'
+                inputs:
+                  azureSubscription: ${{ parameters.azureServiceConnection }}
+                  scriptType: 'bash'
+                  scriptLocation: 'inlineScript'
+                  inlineScript: |
+                    set -euo pipefail
+
+                    STORAGE_ACCOUNT="${{ parameters.storageAccount }}"
+                    CONTAINER="${{ parameters.containerName }}"
+                    VERSION="$(Build.BuildNumber)"
+                    ENV="${{ parameters.environment }}"
+                    ARTIFACTS_DIR="$(Pipeline.Workspace)/cli-artifacts"
+
+                    echo "Uploading CLI artifacts to Azure Storage..."
+
+                    # Upload all archives
+                    for file in "$ARTIFACTS_DIR"/*; do
+                      if [ -f "$file" ]; then
+                        filename=$(basename "$file")
+                        echo "Uploading $filename to $STORAGE_ACCOUNT/$CONTAINER/$ENV/$VERSION/"
+
+                        az storage blob upload \
+                          --account-name "$STORAGE_ACCOUNT" \
+                          --container-name "$CONTAINER" \
+                          --name "$ENV/$VERSION/$filename" \
+                          --file "$file" \
+                          --overwrite
+                      fi
+                    done
+
+                    # Update latest pointer
+                    echo "$VERSION" > /tmp/latest.txt
+                    az storage blob upload \
+                      --account-name "$STORAGE_ACCOUNT" \
+                      --container-name "$CONTAINER" \
+                      --name "$ENV/latest.txt" \
+                      --file /tmp/latest.txt \
+                      --overwrite
+
+                    echo "CLI artifacts uploaded successfully."
+
+            # Create GitHub Release (if enabled and on main branch)
+            - ${{ if eq(parameters.publishToGitHub, true) }}:
+              - task: GitHubRelease@1
+                displayName: 'Create GitHub Release'
+                condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'))
+                inputs:
+                  gitHubConnection: 'github.com_SandboxServers'
+                  repositoryName: '$(Build.Repository.Name)'
+                  action: 'create'
+                  target: '$(Build.SourceVersion)'
+                  tagSource: 'userSpecifiedTag'
+                  tag: 'cli-v$(Build.BuildNumber)'
+                  title: 'CLI Release v$(Build.BuildNumber)'
+                  releaseNotesSource: 'inline'
+                  releaseNotesInline: |
+                    ## CLI Release v$(Build.BuildNumber)
+
+                    **Environment:** ${{ parameters.environment }}
+                    **Build:** $(Build.BuildNumber)
+
+                    ### Downloads
+                    - Windows (x64): `${{ replace(parameters.serviceName, 'Dhadgar.', '') }}-win-x64.zip`
+                    - Linux (x64): `${{ replace(parameters.serviceName, 'Dhadgar.', '') }}-linux-x64.tar.gz`
+                    - macOS (x64): `${{ replace(parameters.serviceName, 'Dhadgar.', '') }}-osx-x64.tar.gz`
+                  assets: '$(Pipeline.Workspace)/cli-artifacts/*'
+                  addChangeLog: true

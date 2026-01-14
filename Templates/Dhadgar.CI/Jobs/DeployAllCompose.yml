@@ -1,0 +1,150 @@
+# Deploy All Compose Services Job
+# Deploys all services at once via Docker Compose (single deployment)
+# Use this for full environment deployments instead of per-service deployments
+
+parameters:
+  environment: 'dev'
+  acrServiceConnection: ''
+  acrLoginServer: ''
+  composeProjectPath: 'deploy/compose'
+  composeFile: 'docker-compose.services.yml'
+  infraComposeFile: 'docker-compose.dev.yml'
+  services: []
+
+jobs:
+  - deployment: DeployAllCompose
+    displayName: 'Deploy All Services (Compose)'
+    environment: 'meridian-${{ parameters.environment }}'
+    pool:
+      name: 'Sandbox Servers Agents'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            - checkout: self
+              fetchDepth: 1
+
+            # Login to ACR
+            - task: Docker@2
+              displayName: 'Login to ACR'
+              inputs:
+                containerRegistry: ${{ parameters.acrServiceConnection }}
+                command: 'login'
+
+            # Ensure infrastructure is running
+            - task: Bash@3
+              displayName: 'Start infrastructure'
+              inputs:
+                targetType: 'inline'
+                workingDirectory: '$(Build.SourcesDirectory)/${{ parameters.composeProjectPath }}'
+                script: |
+                  set -euo pipefail
+
+                  echo "Starting infrastructure services..."
+                  docker compose -f ${{ parameters.infraComposeFile }} up -d
+
+                  echo "Waiting for PostgreSQL..."
+                  timeout 120 bash -c 'until docker compose -f ${{ parameters.infraComposeFile }} ps postgres 2>/dev/null | grep -q healthy; do echo "Waiting..."; sleep 5; done' || {
+                    echo "PostgreSQL health check timeout, checking status..."
+                    docker compose -f ${{ parameters.infraComposeFile }} ps
+                    docker compose -f ${{ parameters.infraComposeFile }} logs postgres --tail=20
+                  }
+
+                  echo "Infrastructure ready."
+
+            # Pull all images
+            - task: Bash@3
+              displayName: 'Pull all images'
+              inputs:
+                targetType: 'inline'
+                script: |
+                  set -euo pipefail
+
+                  ACR_SERVER="${{ parameters.acrLoginServer }}"
+
+                  SERVICES=(gateway identity billing servers nodes tasks files console mods notifications firewall secrets discord)
+
+                  for svc in "${SERVICES[@]}"; do
+                    echo "Pulling dhadgar/$svc:latest..."
+                    docker pull "${ACR_SERVER}/dhadgar/${svc}:latest" || echo "Warning: Failed to pull $svc"
+                  done
+
+            # Deploy all services
+            - task: Bash@3
+              displayName: 'Deploy all services'
+              inputs:
+                targetType: 'inline'
+                workingDirectory: '$(Build.SourcesDirectory)/${{ parameters.composeProjectPath }}'
+                script: |
+                  set -euo pipefail
+
+                  COMPOSE_FILE="${{ parameters.composeFile }}"
+                  ACR_SERVER="${{ parameters.acrLoginServer }}"
+
+                  export ACR_LOGIN_SERVER="${ACR_SERVER}"
+                  export IMAGE_TAG="latest"
+
+                  echo "Stopping existing services..."
+                  docker compose -f "$COMPOSE_FILE" down --remove-orphans || true
+
+                  echo "Starting all services..."
+                  docker compose -f "$COMPOSE_FILE" up -d
+
+                  echo "Waiting for services to start..."
+                  sleep 10
+
+                  echo "Service status:"
+                  docker compose -f "$COMPOSE_FILE" ps
+
+            # Verify deployments
+            - task: Bash@3
+              displayName: 'Verify deployments'
+              inputs:
+                targetType: 'inline'
+                script: |
+                  set -euo pipefail
+
+                  declare -A PORTS=(
+                    [gateway]=5000
+                    [identity]=5010
+                    [billing]=5020
+                    [servers]=5030
+                    [nodes]=5040
+                    [tasks]=5050
+                    [files]=5060
+                    [console]=5070
+                    [mods]=5080
+                    [notifications]=5090
+                    [firewall]=5100
+                    [secrets]=5110
+                    [discord]=5120
+                  )
+
+                  FAILED=0
+
+                  for svc in "${!PORTS[@]}"; do
+                    PORT="${PORTS[$svc]}"
+                    echo -n "Checking $svc (port $PORT)... "
+
+                    for i in {1..5}; do
+                      if curl -sf "http://localhost:${PORT}/healthz" > /dev/null 2>&1; then
+                        echo "OK"
+                        break
+                      fi
+                      sleep 2
+                    done
+
+                    if ! curl -sf "http://localhost:${PORT}/healthz" > /dev/null 2>&1; then
+                      echo "FAILED"
+                      FAILED=$((FAILED + 1))
+                    fi
+                  done
+
+                  if [ $FAILED -gt 0 ]; then
+                    echo ""
+                    echo "Warning: $FAILED service(s) did not pass health check"
+                    echo "Services may still be starting. Check manually."
+                  fi
+
+                  echo ""
+                  echo "Deployment complete."

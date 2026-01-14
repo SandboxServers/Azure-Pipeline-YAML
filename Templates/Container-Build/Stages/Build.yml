@@ -1,0 +1,26 @@
+# Container Build Stage
+# Builds all service Docker images in parallel and pushes to ACR
+
+parameters:
+  acrName: ''
+  acrServiceConnection: ''
+  services: []
+  pushLatest: true
+  buildContext: '$(Build.SourcesDirectory)'
+
+stages:
+  - stage: ContainerBuild
+    displayName: 'Build Containers'
+    jobs:
+      - ${{ each svc in parameters.services }}:
+        - template: ../Jobs/BuildAndPush.yml
+          parameters:
+            serviceName: ${{ svc.name }}
+            imageName: ${{ svc.imageName }}
+            dockerfilePath: ${{ svc.dockerfilePath }}
+            acrName: ${{ parameters.acrName }}
+            acrServiceConnection: ${{ parameters.acrServiceConnection }}
+            pushLatest: ${{ parameters.pushLatest }}
+            buildContext: ${{ parameters.buildContext }}
+            ${{ if svc.buildArgs }}:
+              buildArgs: ${{ svc.buildArgs }}

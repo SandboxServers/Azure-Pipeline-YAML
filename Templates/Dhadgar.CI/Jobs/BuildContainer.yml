@@ -1,0 +1,84 @@
+# Build Container Job
+# Builds Docker image for a service and pushes to ACR
+#
+# Depends on the Build job completing successfully for this service
+
+parameters:
+  service:
+    id: ''
+    projectPath: ''
+    deploy: ''
+  acrServiceConnection: ''
+  acrLoginServer: ''
+
+jobs:
+  - job: BuildContainer_${{ replace(parameters.service.id, '.', '_') }}
+    displayName: 'Container: ${{ parameters.service.id }}'
+    dependsOn: Build_${{ replace(parameters.service.id, '.', '_') }}
+    condition: succeeded()
+    pool:
+      name: 'Sandbox Servers Agents'
+    variables:
+      serviceName: ${{ replace(lower(parameters.service.id), 'dhadgar.', '') }}
+      imageName: dhadgar/${{ replace(lower(parameters.service.id), 'dhadgar.', '') }}
+      dockerfilePath: src/${{ parameters.service.id }}/Dockerfile
+    steps:
+      - checkout: self
+        fetchDepth: 1
+
+      # Determine Dockerfile path based on project structure
+      - pwsh: |
+          $projectPath = '${{ parameters.service.projectPath }}'
+          $projectDir = Split-Path $projectPath -Parent
+
+          # Check for Dockerfile in project directory
+          $dockerfilePath = Join-Path $projectDir "Dockerfile"
+          if (-not (Test-Path $dockerfilePath)) {
+            # Try common patterns
+            $serviceName = '${{ replace(parameters.service.id, 'Dhadgar.', '') }}'
+            $alternates = @(
+              "src/Dhadgar.$serviceName/Dockerfile",
+              "src/$serviceName/Dockerfile",
+              "$projectDir/Dockerfile"
+            )
+            foreach ($alt in $alternates) {
+              if (Test-Path $alt) {
+                $dockerfilePath = $alt
+                break
+              }
+            }
+          }
+
+          Write-Host "Using Dockerfile: $dockerfilePath"
+          Write-Host "##vso[task.setvariable variable=DockerfilePath]$dockerfilePath"
+        displayName: 'Resolve Dockerfile path'
+
+      - task: Docker@2
+        displayName: 'Build image'
+        inputs:
+          containerRegistry: ${{ parameters.acrServiceConnection }}
+          repository: $(imageName)
+          command: 'build'
+          Dockerfile: $(DockerfilePath)
+          buildContext: '$(Build.SourcesDirectory)'
+          tags: |
+            $(Build.BuildId)
+            latest
+
+      - task: Docker@2
+        displayName: 'Push image'
+        inputs:
+          containerRegistry: ${{ parameters.acrServiceConnection }}
+          repository: $(imageName)
+          command: 'push'
+          tags: |
+            $(Build.BuildId)
+            latest
+
+      # Record image details for deployment stage
+      - pwsh: |
+          $imageRef = "${{ parameters.acrLoginServer }}/$(imageName):$(Build.BuildId)"
+          Write-Host "Published image: $imageRef"
+          Write-Host "##vso[task.setvariable variable=ImageRef;isOutput=true]$imageRef"
+        name: imageOutput
+        displayName: 'Output image reference'

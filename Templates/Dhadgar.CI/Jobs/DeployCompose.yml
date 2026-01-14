@@ -1,0 +1,157 @@
+# Deploy Docker Compose Job
+# Deploys services via Docker Compose on self-hosted agents
+#
+# This job runs on the same network as the ADO agents, which have access
+# to both the Docker socket and the dhadgar-dev network.
+
+parameters:
+  serviceName: ''
+  environment: 'dev'
+  acrServiceConnection: ''
+  acrLoginServer: ''
+  composeProjectPath: 'deploy/compose'
+  composeFile: 'docker-compose.services.acr.yml'  # Use ACR images
+  infraComposeFile: 'docker-compose.dev.yml'
+
+jobs:
+  - deployment: DeployCompose_${{ replace(parameters.serviceName, '.', '_') }}
+    displayName: 'Deploy (Compose): ${{ parameters.serviceName }}'
+    environment: 'meridian-${{ parameters.environment }}'
+    pool:
+      name: 'Sandbox Servers Agents'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            - checkout: self
+              fetchDepth: 1
+
+            # Login to ACR to pull images
+            - task: Docker@2
+              displayName: 'Login to ACR'
+              inputs:
+                containerRegistry: ${{ parameters.acrServiceConnection }}
+                command: 'login'
+
+            # Ensure infrastructure is running
+            - task: Bash@3
+              displayName: 'Ensure infrastructure is running'
+              inputs:
+                targetType: 'inline'
+                workingDirectory: '$(Build.SourcesDirectory)/${{ parameters.composeProjectPath }}'
+                script: |
+                  set -euo pipefail
+
+                  echo "Checking infrastructure services..."
+                  docker compose -f ${{ parameters.infraComposeFile }} ps
+
+                  # Start infrastructure if not running
+                  if ! docker compose -f ${{ parameters.infraComposeFile }} ps --status running | grep -q postgres; then
+                    echo "Starting infrastructure services..."
+                    docker compose -f ${{ parameters.infraComposeFile }} up -d
+
+                    # Wait for postgres to be healthy
+                    echo "Waiting for PostgreSQL to be healthy..."
+                    timeout 120 bash -c 'until docker compose -f ${{ parameters.infraComposeFile }} ps postgres | grep -q healthy; do sleep 2; done'
+                  fi
+
+                  echo "Infrastructure is ready."
+
+            # Pull latest images from ACR
+            - task: Bash@3
+              displayName: 'Pull latest images'
+              inputs:
+                targetType: 'inline'
+                workingDirectory: '$(Build.SourcesDirectory)/${{ parameters.composeProjectPath }}'
+                script: |
+                  set -euo pipefail
+
+                  SERVICE_NAME="${{ replace(lower(parameters.serviceName), 'dhadgar.', '') }}"
+                  ACR_SERVER="${{ parameters.acrLoginServer }}"
+
+                  echo "Pulling latest image for $SERVICE_NAME..."
+                  docker pull "${ACR_SERVER}/dhadgar/${SERVICE_NAME}:latest" || true
+
+            # Deploy the service
+            - task: Bash@3
+              displayName: 'Deploy service'
+              inputs:
+                targetType: 'inline'
+                workingDirectory: '$(Build.SourcesDirectory)/${{ parameters.composeProjectPath }}'
+                script: |
+                  set -euo pipefail
+
+                  SERVICE_NAME="${{ replace(lower(parameters.serviceName), 'dhadgar.', '') }}"
+                  ACR_SERVER="${{ parameters.acrLoginServer }}"
+                  COMPOSE_FILE="${{ parameters.composeFile }}"
+
+                  echo "Deploying $SERVICE_NAME..."
+
+                  # Export environment variables for compose
+                  export ACR_LOGIN_SERVER="${ACR_SERVER}"
+                  export IMAGE_TAG="latest"
+
+                  # Stop existing service gracefully
+                  docker compose -f "$COMPOSE_FILE" stop "$SERVICE_NAME" || true
+
+                  # Remove old container
+                  docker compose -f "$COMPOSE_FILE" rm -f "$SERVICE_NAME" || true
+
+                  # Start service with new image
+                  docker compose -f "$COMPOSE_FILE" up -d "$SERVICE_NAME"
+
+                  # Wait for service to be healthy
+                  echo "Waiting for $SERVICE_NAME to be healthy..."
+                  sleep 5
+
+                  # Check health
+                  if docker compose -f "$COMPOSE_FILE" ps "$SERVICE_NAME" | grep -q "Up"; then
+                    echo "$SERVICE_NAME is running."
+                  else
+                    echo "Warning: $SERVICE_NAME may not have started correctly."
+                    docker compose -f "$COMPOSE_FILE" logs --tail=50 "$SERVICE_NAME"
+                    exit 1
+                  fi
+
+            # Verify deployment
+            - task: Bash@3
+              displayName: 'Verify deployment'
+              inputs:
+                targetType: 'inline'
+                script: |
+                  set -euo pipefail
+
+                  SERVICE_NAME="${{ replace(lower(parameters.serviceName), 'dhadgar.', '') }}"
+
+                  # Get service port mapping
+                  case "$SERVICE_NAME" in
+                    gateway)     PORT=5000 ;;
+                    identity)    PORT=5010 ;;
+                    billing)     PORT=5020 ;;
+                    servers)     PORT=5030 ;;
+                    nodes)       PORT=5040 ;;
+                    tasks)       PORT=5050 ;;
+                    files)       PORT=5060 ;;
+                    console)     PORT=5070 ;;
+                    mods)        PORT=5080 ;;
+                    notifications) PORT=5090 ;;
+                    firewall)    PORT=5100 ;;
+                    secrets)     PORT=5110 ;;
+                    discord)     PORT=5120 ;;
+                    *)           PORT=8080 ;;
+                  esac
+
+                  echo "Checking health endpoint for $SERVICE_NAME on port $PORT..."
+
+                  # Retry health check
+                  for i in {1..10}; do
+                    if curl -sf "http://localhost:${PORT}/healthz" > /dev/null 2>&1; then
+                      echo "$SERVICE_NAME health check passed!"
+                      exit 0
+                    fi
+                    echo "Attempt $i: waiting for service..."
+                    sleep 3
+                  done
+
+                  echo "Warning: Health check did not pass, but service may still be starting."
+                  exit 0

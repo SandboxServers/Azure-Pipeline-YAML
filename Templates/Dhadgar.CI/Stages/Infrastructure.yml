@@ -1,0 +1,114 @@
+# Infrastructure Provisioning Stage
+# Provisions Azure resources (Key Vaults, App Registrations, DNS) for Meridian Console
+#
+# This stage runs on main branch only and provisions environment-specific infrastructure
+
+parameters:
+  environment: 'dev'
+  azureServiceConnection: 'Azure-Sub'
+  cloudflareApiToken: ''
+  provisionAzure: false
+  provisionDns: false
+  tenantId: ''
+
+stages:
+  - stage: Infrastructure_${{ parameters.environment }}
+    displayName: 'Infrastructure (${{ parameters.environment }})'
+    dependsOn: Build
+    condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'), eq('${{ parameters.provisionAzure }}', 'true'))
+    jobs:
+      # Azure Resource Provisioning
+      - job: ProvisionAzure
+        displayName: 'Provision Azure Resources'
+        pool:
+          name: 'Sandbox Servers Agents'
+        steps:
+          - checkout: self
+            fetchDepth: 1
+
+          - task: AzureCLI@2
+            displayName: 'Create Resource Groups'
+            inputs:
+              azureSubscription: ${{ parameters.azureServiceConnection }}
+              scriptType: 'pscore'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                $ErrorActionPreference = 'Stop'
+                $env = '${{ parameters.environment }}'
+                $location = 'centralus'
+
+                $rgNames = @{
+                  dev = @('meridian-dev-rg', 'Secrets')
+                  staging = @('meridian-staging-rg', 'Secrets')
+                  prod = @('meridian-prod-rg', 'Secrets')
+                }
+
+                foreach ($rgName in $rgNames[$env]) {
+                  $exists = az group exists --name $rgName
+                  if ($exists -eq 'false') {
+                    Write-Host "Creating resource group: $rgName"
+                    az group create --name $rgName --location $location
+                  } else {
+                    Write-Host "Resource group exists: $rgName"
+                  }
+                }
+
+          - task: AzureCLI@2
+            displayName: 'Provision Key Vaults'
+            inputs:
+              azureSubscription: ${{ parameters.azureServiceConnection }}
+              scriptType: 'pscore'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                $ErrorActionPreference = 'Stop'
+                $env = '${{ parameters.environment }}'
+                $location = 'centralus'
+                $rgName = 'Secrets'
+
+                $vaultConfig = @{
+                  dev = @{ core = 'mc-core-dev'; oauth = 'mc-oauth-dev' }
+                  staging = @{ core = 'mc-core-staging'; oauth = 'mc-oauth-staging' }
+                  prod = @{ core = 'mc-core'; oauth = 'mc-oauth' }
+                }
+
+                $vaults = $vaultConfig[$env]
+
+                foreach ($vault in $vaults.GetEnumerator()) {
+                  $vaultName = $vault.Value
+                  $exists = az keyvault show --name $vaultName 2>$null
+                  if (-not $exists) {
+                    Write-Host "Creating Key Vault: $vaultName"
+                    az keyvault create `
+                      --name $vaultName `
+                      --resource-group $rgName `
+                      --location $location `
+                      --enable-rbac-authorization true
+                  } else {
+                    Write-Host "Key Vault exists: $vaultName"
+                  }
+                }
+
+          - task: AzureCLI@2
+            displayName: 'Provision App Registrations'
+            condition: and(succeeded(), ne('${{ parameters.tenantId }}', ''))
+            inputs:
+              azureSubscription: ${{ parameters.azureServiceConnection }}
+              scriptType: 'pscore'
+              scriptLocation: 'scriptPath'
+              scriptPath: '$(Build.SourcesDirectory)/deploy/scripts/provision-azure-app-registrations.ps1'
+              arguments: >-
+                -TenantId "${{ parameters.tenantId }}"
+                -Environment "${{ parameters.environment }}"
+
+      # Cloudflare DNS Configuration
+      - ${{ if and(eq(parameters.provisionDns, true), ne(parameters.cloudflareApiToken, '')) }}:
+        - job: ConfigureDns
+          displayName: 'Configure Cloudflare DNS'
+          dependsOn: ProvisionAzure
+          pool:
+            name: 'Sandbox Servers Agents'
+          steps:
+            - template: ../Steps/CloudflareDns.yml
+              parameters:
+                environment: ${{ parameters.environment }}
+                apiToken: ${{ parameters.cloudflareApiToken }}

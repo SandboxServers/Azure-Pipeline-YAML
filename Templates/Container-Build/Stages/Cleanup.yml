@@ -1,0 +1,68 @@
+# Container Cleanup Stage
+# Removes old images from ACR, keeping only the most recent N images per repository
+
+parameters:
+  acrName: ''
+  acrServiceConnection: ''
+  services: []
+  keepCount: 2
+
+stages:
+  - stage: ContainerCleanup
+    displayName: 'Cleanup Old Images'
+    dependsOn: ContainerBuild
+    condition: succeeded()
+    jobs:
+      - job: CleanupImages
+        displayName: 'Remove old images from ACR'
+        pool:
+          name: 'Sandbox Servers Agents'
+        steps:
+          - task: AzureCLI@2
+            displayName: 'Cleanup old images'
+            inputs:
+              azureSubscription: ${{ parameters.acrServiceConnection }}
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                set -euo pipefail
+
+                ACR_NAME="${{ parameters.acrName }}"
+                KEEP_COUNT=${{ parameters.keepCount }}
+
+                # Process each service
+                ${{ each svc in parameters.services }}:
+                echo "Cleaning up ${{ svc.imageName }}..."
+
+                # Get all tags sorted by creation time (newest first)
+                TAGS=$(az acr repository show-tags \
+                  --name "$ACR_NAME" \
+                  --repository "${{ svc.imageName }}" \
+                  --orderby time_desc \
+                  --output tsv 2>/dev/null || echo "")
+
+                if [ -z "$TAGS" ]; then
+                  echo "  No tags found for ${{ svc.imageName }}"
+                  continue
+                fi
+
+                # Skip 'latest' tag and count remaining
+                COUNT=0
+                while IFS= read -r tag; do
+                  if [ "$tag" = "latest" ]; then
+                    continue
+                  fi
+
+                  COUNT=$((COUNT + 1))
+
+                  if [ $COUNT -gt $KEEP_COUNT ]; then
+                    echo "  Deleting ${{ svc.imageName }}:$tag"
+                    az acr repository delete \
+                      --name "$ACR_NAME" \
+                      --image "${{ svc.imageName }}:$tag" \
+                      --yes || echo "    Warning: Failed to delete $tag"
+                  fi
+                done <<< "$TAGS"
+
+                echo "  Kept $((COUNT < KEEP_COUNT ? COUNT : KEEP_COUNT)) images"
+                ${{ end }}

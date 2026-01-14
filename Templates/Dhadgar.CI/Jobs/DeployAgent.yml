@@ -1,0 +1,76 @@
+# Deploy Agent Job
+# Downloads Agent artifacts from Package stage and distributes to storage
+#
+# This job expects artifacts from PackageAgent job in Package stage
+
+parameters:
+  serviceName: ''
+  environment: 'dev'
+  projectPath: ''  # Not used for building anymore, kept for compatibility
+  runtimes: 'win-x64;linux-x64'  # Not used for building anymore
+  storageAccount: ''
+  containerName: 'agent-releases'
+  azureServiceConnection: 'Azure-Sub'
+
+jobs:
+  - deployment: DeployAgent_${{ replace(parameters.serviceName, '.', '_') }}
+    displayName: 'Deploy (Agent): ${{ parameters.serviceName }}'
+    environment: 'meridian-${{ parameters.environment }}'
+    pool:
+      name: 'Sandbox Servers Agents'
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            # Download Agent artifacts from Package stage
+            - task: DownloadPipelineArtifact@2
+              displayName: 'Download Agent artifacts'
+              inputs:
+                buildType: 'current'
+                artifactName: 'agent-${{ replace(parameters.serviceName, '.', '_') }}'
+                targetPath: '$(Pipeline.Workspace)/agent-artifacts'
+
+            # Upload to Azure Storage (if configured)
+            - ${{ if ne(parameters.storageAccount, '') }}:
+              - task: AzureCLI@2
+                displayName: 'Upload to Azure Storage'
+                inputs:
+                  azureSubscription: ${{ parameters.azureServiceConnection }}
+                  scriptType: 'bash'
+                  scriptLocation: 'inlineScript'
+                  inlineScript: |
+                    set -euo pipefail
+
+                    STORAGE_ACCOUNT="${{ parameters.storageAccount }}"
+                    CONTAINER="${{ parameters.containerName }}"
+                    VERSION="$(Build.BuildNumber)"
+                    ENV="${{ parameters.environment }}"
+                    ARTIFACTS_DIR="$(Pipeline.Workspace)/agent-artifacts"
+
+                    echo "Uploading Agent artifacts to Azure Storage..."
+
+                    # Upload all archives
+                    for file in "$ARTIFACTS_DIR"/*; do
+                      if [ -f "$file" ]; then
+                        filename=$(basename "$file")
+                        echo "Uploading $filename to $STORAGE_ACCOUNT/$CONTAINER/$ENV/$VERSION/"
+
+                        az storage blob upload \
+                          --account-name "$STORAGE_ACCOUNT" \
+                          --container-name "$CONTAINER" \
+                          --name "$ENV/$VERSION/$filename" \
+                          --file "$file" \
+                          --overwrite
+                      fi
+                    done
+
+                    # Update latest pointer
+                    echo "$VERSION" > /tmp/latest.txt
+                    az storage blob upload \
+                      --account-name "$STORAGE_ACCOUNT" \
+                      --container-name "$CONTAINER" \
+                      --name "$ENV/latest.txt" \
+                      --file /tmp/latest.txt \
+                      --overwrite
+
+                    echo "Agent artifacts uploaded successfully."
