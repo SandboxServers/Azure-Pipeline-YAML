@@ -47,6 +47,7 @@ jobs:
         buildConfiguration: ${{ parameters.buildConfiguration }}
         collectCoverage: ${{ parameters.collectCoverage }}
         resultsDirectory: $(TestResultsDir)
+        testRunTitle: ${{ parameters.service.id }}
 
     - ${{ if eq(parameters.collectCoverage, true) }}:
       - template: ../../Standalone/Steps/DotNet/PublishCoverage.yml

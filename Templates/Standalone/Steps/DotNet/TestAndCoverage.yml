@@ -3,6 +3,7 @@ parameters:
   buildConfiguration: 'Release'
   collectCoverage: true
   resultsDirectory: '$(Agent.TempDirectory)/testresults'
+  testRunTitle: ''
 steps:
 - ${{ if ne(parameters.testProjectPath, '') }}:
   - ${{ if eq(parameters.collectCoverage, true) }}:
@@ -36,3 +37,4 @@ steps:
     testResultsFiles: '${{ parameters.resultsDirectory }}/**/*.trx'
     mergeTestResults: true
     failTaskOnFailedTests: true
+    testRunTitle: ${{ parameters.testRunTitle }}
