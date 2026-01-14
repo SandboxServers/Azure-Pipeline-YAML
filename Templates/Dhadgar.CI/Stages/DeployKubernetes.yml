@@ -32,12 +32,12 @@ stages:
         environment: 'meridian-${{ parameters.environment }}'
         pool:
           name: 'Sandbox Servers Agents'
-        download: none
         strategy:
           runOnce:
             deploy:
               steps:
                 - checkout: none
+                - download: none
 
                 - task: HelmInstaller@1
                   displayName: 'Install Helm ${{ parameters.helmVersion }}'
