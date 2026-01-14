@@ -28,7 +28,7 @@ jobs:
               displayName: 'Download CLI artifacts'
               inputs:
                 buildType: 'current'
-                artifactName: 'cli-${{ replace(parameters.serviceName, '.', '_') }}'
+                artifactName: cli-${{ replace(parameters.serviceName, '.', '_') }}
                 targetPath: '$(Pipeline.Workspace)/cli-artifacts'
 
             # Upload to Azure Storage (if configured)

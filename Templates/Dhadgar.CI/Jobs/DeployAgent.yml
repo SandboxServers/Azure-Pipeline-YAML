@@ -27,7 +27,7 @@ jobs:
               displayName: 'Download Agent artifacts'
               inputs:
                 buildType: 'current'
-                artifactName: 'agent-${{ replace(parameters.serviceName, '.', '_') }}'
+                artifactName: agent-${{ replace(parameters.serviceName, '.', '_') }}
                 targetPath: '$(Pipeline.Workspace)/agent-artifacts'
 
             # Upload to Azure Storage (if configured)
