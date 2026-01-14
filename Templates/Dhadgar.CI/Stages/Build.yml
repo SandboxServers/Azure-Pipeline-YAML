@@ -22,3 +22,44 @@ stages:
           runTests: ${{ parameters.runTests }}
           collectCoverage: ${{ parameters.collectCoverage }}
           publishArtifacts: ${{ and(not(startsWith(svc.projectPath, 'tests/')), not(startsWith(svc.projectPath, 'src/Shared/'))) }}
+
+- stage: Coverage
+  displayName: Coverage
+  dependsOn: Build
+  condition: and(succeededOrFailed(), eq('${{ parameters.collectCoverage }}', 'true'), eq('${{ parameters.runTests }}', 'true'))
+  jobs:
+  - job: MergeCoverage
+    displayName: 'Merge coverage'
+    steps:
+    - download: current
+      displayName: 'Download coverage inputs'
+      patterns: '**/coverage.cobertura.xml'
+      path: $(Pipeline.Workspace)/coverage-input
+
+    - pwsh: |
+        $root = "$(Pipeline.Workspace)/coverage-input"
+        $files = Get-ChildItem -Path $root -Recurse -Filter "coverage.cobertura.xml" -ErrorAction SilentlyContinue
+        if (-not $files) {
+          Write-Host "No coverage inputs found."
+          Write-Host "##vso[task.setvariable variable=CoverageFilesFound]false"
+          exit 0
+        }
+
+        Write-Host "Found $($files.Count) coverage files."
+        Write-Host "##vso[task.setvariable variable=CoverageFilesFound]true"
+
+        dotnet tool update --tool-path . dotnet-reportgenerator-globaltool
+        .\\reportgenerator `
+          -reports:"$root/**/coverage.cobertura.xml" `
+          -targetdir:"$(Build.ArtifactStagingDirectory)/coverage" `
+          -reporttypes:"Cobertura;HtmlInline_AzurePipelines"
+      displayName: 'Merge coverage'
+
+    - task: PublishCodeCoverageResults@2
+      displayName: 'Publish merged coverage'
+      condition: and(succeededOrFailed(), eq(variables['CoverageFilesFound'], 'true'))
+      inputs:
+        codeCoverageTool: Cobertura
+        summaryFileLocation: '$(Build.ArtifactStagingDirectory)/coverage/Cobertura.xml'
+        reportDirectory: '$(Build.ArtifactStagingDirectory)/coverage'
+        failIfCoverageEmpty: false

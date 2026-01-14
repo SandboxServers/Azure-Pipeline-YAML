@@ -1,0 +1,35 @@
+parameters:
+  resultsDirectory: '$(Agent.TempDirectory)/testresults'
+  artifactName: 'coverage'
+
+steps:
+- pwsh: |
+    $source = "${{ parameters.resultsDirectory }}"
+    $target = "$(Build.ArtifactStagingDirectory)/coverage-input"
+
+    if (Test-Path $target) {
+      Remove-Item -Recurse -Force $target
+    }
+
+    New-Item -ItemType Directory -Path $target | Out-Null
+
+    $files = Get-ChildItem -Path $source -Recurse -Filter "coverage.cobertura.xml" -ErrorAction SilentlyContinue
+    if (-not $files) {
+      Write-Host "No coverage files found under $source"
+      exit 0
+    }
+
+    foreach ($file in $files) {
+      $destDir = Join-Path $target $file.Directory.Name
+      New-Item -ItemType Directory -Path $destDir -Force | Out-Null
+      Copy-Item -Path $file.FullName -Destination (Join-Path $destDir $file.Name) -Force
+    }
+  displayName: 'Stage coverage inputs'
+
+- task: PublishPipelineArtifact@1
+  displayName: 'Publish coverage inputs'
+  condition: succeededOrFailed()
+  inputs:
+    targetPath: '$(Build.ArtifactStagingDirectory)/coverage-input'
+    artifactName: '${{ parameters.artifactName }}'
+    publishLocation: 'pipeline'

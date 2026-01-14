@@ -50,9 +50,10 @@ jobs:
         testRunTitle: ${{ parameters.service.id }}
 
     - ${{ if eq(parameters.collectCoverage, true) }}:
-      - template: ../../Standalone/Steps/DotNet/PublishCoverage.yml
+      - template: ../../Standalone/Steps/DotNet/PublishCoverageArtifact.yml
         parameters:
           resultsDirectory: $(TestResultsDir)
+          artifactName: "coverage-${{ replace(parameters.service.id, '.', '_') }}"
 
   - pwsh: |
       $projectPath = '${{ parameters.service.projectPath }}'
