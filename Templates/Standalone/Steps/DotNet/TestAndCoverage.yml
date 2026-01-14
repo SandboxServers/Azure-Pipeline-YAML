@@ -14,6 +14,29 @@ steps:
       New-Item -ItemType Directory -Path $path | Out-Null
     displayName: 'Clean test results directory'
   - ${{ if eq(parameters.collectCoverage, true) }}:
+    - pwsh: |
+        $settingsPath = "$(Agent.TempDirectory)/coverlet.runsettings"
+        @'
+<?xml version="1.0" encoding="utf-8"?>
+<RunSettings>
+  <DataCollectionRunSettings>
+    <DataCollectors>
+      <DataCollector friendlyName="XPlat Code Coverage">
+        <Configuration>
+          <Format>cobertura</Format>
+          <Exclude>[Dhadgar.*]Microsoft.AspNetCore.OpenApi.Generated*</Exclude>
+          <ExcludeByFile>**/Migrations/*.cs;**/*.g.cs;**/*.g.i.cs;**/*.Designer.cs;**/*.Generated.cs;**/*.AssemblyInfo.cs;**/.NETCoreApp,Version=*/.NETCoreApp,Version*.AssemblyAttributes.cs</ExcludeByFile>
+          <ExcludeByAttribute>CompilerGeneratedAttribute,GeneratedCodeAttribute</ExcludeByAttribute>
+          <IncludeTestAssembly>false</IncludeTestAssembly>
+          <UseSourceLink>true</UseSourceLink>
+        </Configuration>
+      </DataCollector>
+    </DataCollectors>
+  </DataCollectionRunSettings>
+</RunSettings>
+'@ | Set-Content -Path $settingsPath -Encoding UTF8
+        Write-Host "Using coverlet settings at $settingsPath"
+      displayName: 'Write coverlet runsettings'
     - task: DotNetCoreCLI@2
       displayName: 'dotnet test'
       inputs:
@@ -25,6 +48,7 @@ steps:
           --logger "trx"
           --results-directory "${{ parameters.resultsDirectory }}"
           --collect "XPlat Code Coverage"
+          --settings "$(Agent.TempDirectory)/coverlet.runsettings"
   - ${{ if ne(parameters.collectCoverage, true) }}:
     - task: DotNetCoreCLI@2
       displayName: 'dotnet test'
