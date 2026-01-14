@@ -76,7 +76,7 @@ parameters:
     - prod
 - name: azureServiceConnection
   type: string
-  default: 'Azure-Sub'
+  default: 'meridian-rg-sc-2'
 - name: acrServiceConnection
   type: string
   default: 'meridianconsoleacr'
@@ -126,6 +126,7 @@ stages:
     acrName: ${{ parameters.acrName }}
     acrServiceConnection: ${{ parameters.acrServiceConnection }}
     acrLoginServer: ${{ parameters.acrLoginServer }}
+    azureServiceConnection: ${{ parameters.azureServiceConnection }}
 
 # Infrastructure Provisioning Stage (optional)
 - ${{ if eq(parameters.provisionInfrastructure, true) }}:
@@ -166,7 +167,7 @@ stages:
       environment: ${{ parameters.environment }}
       namespace: ${{ parameters.environment }}
       kubernetesServiceConnection: ${{ parameters.kubernetesServiceConnection }}
-      acrServiceConnection: ${{ parameters.acrServiceConnection }}
+      azureServiceConnection: ${{ parameters.azureServiceConnection }}
       acrName: ${{ parameters.acrName }}
       acrLoginServer: ${{ parameters.acrLoginServer }}
       helmChartName: ${{ parameters.helmChartName }}

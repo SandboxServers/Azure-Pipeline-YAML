@@ -5,7 +5,7 @@ parameters:
   environment: 'dev'
   namespace: ''
   kubernetesServiceConnection: ''
-  acrServiceConnection: ''
+  azureServiceConnection: ''
   acrName: 'meridianconsoleacr'
   acrLoginServer: 'meridianconsoleacr-etdvg4cthscffqdf.azurecr.io'
   helmChartName: 'meridian-console'
@@ -54,7 +54,7 @@ stages:
                 - task: AzureCLI@2
                   displayName: 'Login to ACR for Helm OCI'
                   inputs:
-                    azureSubscription: ${{ parameters.acrServiceConnection }}
+                    azureSubscription: ${{ parameters.azureServiceConnection }}
                     scriptType: 'bash'
                     scriptLocation: 'inlineScript'
                     inlineScript: |

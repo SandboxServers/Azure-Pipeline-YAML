@@ -4,7 +4,7 @@ parameters:
   chartName: 'meridian-console'
   acrName: 'meridianconsoleacr'
   acrLoginServer: 'meridianconsoleacr-etdvg4cthscffqdf.azurecr.io'
-  acrServiceConnection: ''
+  azureServiceConnection: ''
   helmVersion: '3.13.0'
 
 steps:
@@ -16,7 +16,7 @@ steps:
   - task: AzureCLI@2
     displayName: 'Login to ACR for Helm OCI'
     inputs:
-      azureSubscription: ${{ parameters.acrServiceConnection }}
+      azureSubscription: ${{ parameters.azureServiceConnection }}
       scriptType: 'bash'
       scriptLocation: 'inlineScript'
       inlineScript: |
@@ -70,4 +70,3 @@ steps:
       echo "##vso[task.setvariable variable=HelmChartVersion;isOutput=true]${CHART_VERSION}"
     name: helmPublish
     displayName: 'Package and push Helm chart'
-

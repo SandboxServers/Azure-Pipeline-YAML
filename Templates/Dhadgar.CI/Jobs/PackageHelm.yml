@@ -7,7 +7,7 @@ parameters:
   chartName: 'meridian-console'
   acrName: 'meridianconsoleacr'
   acrLoginServer: 'meridianconsoleacr-etdvg4cthscffqdf.azurecr.io'
-  acrServiceConnection: ''
+  azureServiceConnection: ''
   helmVersion: '3.13.0'
 
 jobs:
@@ -26,5 +26,5 @@ jobs:
           chartName: ${{ parameters.chartName }}
           acrName: ${{ parameters.acrName }}
           acrLoginServer: ${{ parameters.acrLoginServer }}
-          acrServiceConnection: ${{ parameters.acrServiceConnection }}
+          azureServiceConnection: ${{ parameters.azureServiceConnection }}
           helmVersion: ${{ parameters.helmVersion }}

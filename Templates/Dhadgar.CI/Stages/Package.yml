@@ -12,6 +12,7 @@ parameters:
   buildConfiguration: 'Release'
   acrServiceConnection: 'meridianconsoleacr'
   acrLoginServer: 'meridianconsoleacr-etdvg4cthscffqdf.azurecr.io'
+  azureServiceConnection: ''
   publishHelmChart: true
   helmChartPath: 'deploy/kubernetes/helm/meridian-console'
   helmChartRoot: 'deploy/kubernetes/helm'
@@ -69,7 +70,7 @@ stages:
             chartName: ${{ parameters.helmChartName }}
             acrName: ${{ parameters.acrName }}
             acrLoginServer: ${{ parameters.acrLoginServer }}
-            acrServiceConnection: ${{ parameters.acrServiceConnection }}
+            azureServiceConnection: ${{ parameters.azureServiceConnection }}
             helmVersion: ${{ parameters.helmVersion }}
 
       # Publish compose assets for localdev deploys
