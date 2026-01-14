@@ -66,6 +66,7 @@ jobs:
     condition: and(succeeded(), eq('${{ parameters.publishArtifacts }}', 'true'))
     inputs:
       command: 'publish'
+      publishWebProjects: false
       projects: ${{ parameters.service.projectPath }}
       arguments: >
         -c ${{ parameters.buildConfiguration }}
