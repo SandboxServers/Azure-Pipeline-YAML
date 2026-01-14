@@ -68,7 +68,6 @@ jobs:
       arguments: >
         -c ${{ parameters.buildConfiguration }}
         -o "$(PublishDir)"
-        --no-build
         /p:SatelliteResourceLanguages=en-US
 
   - task: PublishPipelineArtifact@1
