@@ -55,12 +55,27 @@ jobs:
       $projectPath = '${{ parameters.service.projectPath }}'
       $projectDir = Split-Path $projectPath -Parent
       Write-Host "##vso[task.setvariable variable=ProjectDir]$projectDir"
+      $publishDir = "$(Build.ArtifactStagingDirectory)/${{ replace(parameters.service.id, '.', '_') }}"
+      Write-Host "##vso[task.setvariable variable=PublishDir]$publishDir"
     displayName: 'Resolve project directory'
 
-  - task: PublishPipelineArtifact@1
-    displayName: 'Publish build outputs (bin/)'
+  - task: DotNetCoreCLI@2
+    displayName: 'dotnet publish'
     condition: and(succeeded(), eq('${{ parameters.publishArtifacts }}', 'true'))
     inputs:
-      targetPath: '$(Build.SourcesDirectory)/$(ProjectDir)/bin/${{ parameters.buildConfiguration }}'
+      command: 'publish'
+      projects: ${{ parameters.service.projectPath }}
+      arguments: >
+        -c ${{ parameters.buildConfiguration }}
+        -o "$(PublishDir)"
+        --no-build
+        --no-restore
+        /p:SatelliteResourceLanguages=en-US
+
+  - task: PublishPipelineArtifact@1
+    displayName: 'Publish release outputs'
+    condition: and(succeeded(), eq('${{ parameters.publishArtifacts }}', 'true'))
+    inputs:
+      targetPath: '$(PublishDir)'
       artifactName: "src-${{ replace(parameters.service.id, '.', '_') }}"
       publishLocation: 'pipeline'
