@@ -1,0 +1,30 @@
+# Package Helm Chart Job
+# Packages and publishes the Meridian Console Helm chart to ACR
+
+parameters:
+  chartPath: 'deploy/kubernetes/helm/meridian-console'
+  chartRoot: 'deploy/kubernetes/helm'
+  chartName: 'meridian-console'
+  acrName: 'meridianconsoleacr'
+  acrLoginServer: 'meridianconsoleacr-etdvg4cthscffqdf.azurecr.io'
+  acrServiceConnection: ''
+  helmVersion: '3.13.0'
+
+jobs:
+  - job: PackageHelm
+    displayName: 'Package: Helm chart'
+    pool:
+      name: 'Sandbox Servers Agents'
+    steps:
+      - checkout: self
+        fetchDepth: 0
+
+      - template: ../../Standalone/Steps/Helm/PublishChartToAcr.yml
+        parameters:
+          chartPath: ${{ parameters.chartPath }}
+          chartRoot: ${{ parameters.chartRoot }}
+          chartName: ${{ parameters.chartName }}
+          acrName: ${{ parameters.acrName }}
+          acrLoginServer: ${{ parameters.acrLoginServer }}
+          acrServiceConnection: ${{ parameters.acrServiceConnection }}
+          helmVersion: ${{ parameters.helmVersion }}

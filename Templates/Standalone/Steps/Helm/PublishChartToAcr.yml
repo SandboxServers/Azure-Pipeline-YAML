@@ -1,0 +1,73 @@
+parameters:
+  chartPath: 'deploy/kubernetes/helm/meridian-console'
+  chartRoot: 'deploy/kubernetes/helm'
+  chartName: 'meridian-console'
+  acrName: 'meridianconsoleacr'
+  acrLoginServer: 'meridianconsoleacr-etdvg4cthscffqdf.azurecr.io'
+  acrServiceConnection: ''
+  helmVersion: '3.13.0'
+
+steps:
+  - task: HelmInstaller@1
+    displayName: 'Install Helm ${{ parameters.helmVersion }}'
+    inputs:
+      helmVersionToInstall: '${{ parameters.helmVersion }}'
+
+  - task: AzureCLI@2
+    displayName: 'Login to ACR for Helm OCI'
+    inputs:
+      azureSubscription: ${{ parameters.acrServiceConnection }}
+      scriptType: 'bash'
+      scriptLocation: 'inlineScript'
+      inlineScript: |
+        set -euo pipefail
+
+        ACR_NAME="${{ parameters.acrName }}"
+        ACR_LOGIN_SERVER="${{ parameters.acrLoginServer }}"
+
+        echo "##vso[task.setvariable variable=ACR_LOGIN_SERVER]$ACR_LOGIN_SERVER"
+
+        az acr login --name "$ACR_NAME"
+
+        ACCESS_TOKEN="$(az acr login --name "$ACR_NAME" --expose-token --output tsv --query accessToken)"
+        echo "$ACCESS_TOKEN" | helm registry login "$ACR_LOGIN_SERVER" \
+          --username 00000000-0000-0000-0000-000000000000 \
+          --password-stdin
+
+        echo "Logged in to ACR: $ACR_LOGIN_SERVER"
+
+  - bash: |
+      set -euo pipefail
+      helm repo add bitnami https://charts.bitnami.com/bitnami
+      helm repo update
+    displayName: 'Add Bitnami repository'
+
+  - bash: |
+      set -euo pipefail
+      cd "${{ parameters.chartPath }}"
+      helm dependency update
+    displayName: 'Update chart dependencies'
+
+  - bash: |
+      set -euo pipefail
+      cd "${{ parameters.chartRoot }}"
+      helm lint "${{ parameters.chartName }}"
+    displayName: 'Lint Helm chart'
+
+  - bash: |
+      set -euo pipefail
+      cd "${{ parameters.chartRoot }}"
+
+      helm package "${{ parameters.chartName }}"
+
+      CHART_VERSION="$(grep '^version:' "${{ parameters.chartName }}/Chart.yaml" | awk '{print $2}')"
+      CHART_FILE="${{ parameters.chartName }}-${CHART_VERSION}.tgz"
+      ACR_LOGIN_SERVER="${{ parameters.acrLoginServer }}"
+
+      echo "Publishing ${CHART_FILE} to oci://${ACR_LOGIN_SERVER}/helm"
+      helm push "${CHART_FILE}" "oci://${ACR_LOGIN_SERVER}/helm"
+
+      echo "##vso[task.setvariable variable=HelmChartVersion;isOutput=true]${CHART_VERSION}"
+    name: helmPublish
+    displayName: 'Package and push Helm chart'
+

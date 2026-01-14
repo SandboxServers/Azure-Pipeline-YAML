@@ -27,6 +27,28 @@ parameters:
 - name: localAgentDemand
   type: string
   default: ''
+# Helm publish/deploy settings
+- name: publishHelmChart
+  type: boolean
+  default: true
+- name: helmChartPath
+  type: string
+  default: 'deploy/kubernetes/helm/meridian-console'
+- name: helmChartRoot
+  type: string
+  default: 'deploy/kubernetes/helm'
+- name: helmChartName
+  type: string
+  default: 'meridian-console'
+- name: helmVersion
+  type: string
+  default: '3.13.0'
+- name: helmReleaseName
+  type: string
+  default: 'meridian'
+- name: imageTag
+  type: string
+  default: '$(Build.BuildId)'
 # Infrastructure provisioning parameters
 - name: provisionInfrastructure
   type: boolean
@@ -52,12 +74,18 @@ parameters:
 - name: acrLoginServer
   type: string
   default: 'meridianconsoleacr-etdvg4cthscffqdf.azurecr.io'
+- name: acrName
+  type: string
+  default: 'meridianconsoleacr'
 - name: cloudflareApiToken
   type: string
   default: ''
 - name: tenantId
   type: string
   default: ''
+- name: kubernetesServiceConnection
+  type: string
+  default: 'meridiank8s'
 
 stages:
 # Build & Test Stage
@@ -78,6 +106,12 @@ stages:
     services: ${{ parameters.services }}
     servicesCsvNormalized: ${{ parameters.servicesCsvNormalized }}
     buildConfiguration: ${{ parameters.buildConfiguration }}
+    publishHelmChart: ${{ parameters.publishHelmChart }}
+    helmChartPath: ${{ parameters.helmChartPath }}
+    helmChartRoot: ${{ parameters.helmChartRoot }}
+    helmChartName: ${{ parameters.helmChartName }}
+    helmVersion: ${{ parameters.helmVersion }}
+    acrName: ${{ parameters.acrName }}
     acrServiceConnection: ${{ parameters.acrServiceConnection }}
     acrLoginServer: ${{ parameters.acrLoginServer }}
 
@@ -112,3 +146,18 @@ stages:
       acrServiceConnection: ${{ parameters.acrServiceConnection }}
       acrLoginServer: ${{ parameters.acrLoginServer }}
       deploy: ${{ parameters.deploy }}
+
+# Kubernetes Deploy Stage (dev/qa/prod)
+- ${{ if and(eq(parameters.deploy, true), ne(parameters.environment, 'localdev')) }}:
+  - template: ../Stages/DeployKubernetes.yml
+    parameters:
+      environment: ${{ parameters.environment }}
+      namespace: ${{ parameters.environment }}
+      kubernetesServiceConnection: ${{ parameters.kubernetesServiceConnection }}
+      acrServiceConnection: ${{ parameters.acrServiceConnection }}
+      acrName: ${{ parameters.acrName }}
+      acrLoginServer: ${{ parameters.acrLoginServer }}
+      helmChartName: ${{ parameters.helmChartName }}
+      helmVersion: ${{ parameters.helmVersion }}
+      releaseName: ${{ parameters.helmReleaseName }}
+      imageTag: ${{ parameters.imageTag }}

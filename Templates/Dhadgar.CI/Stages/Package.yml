@@ -12,6 +12,12 @@ parameters:
   buildConfiguration: 'Release'
   acrServiceConnection: 'meridianconsoleacr'
   acrLoginServer: 'meridianconsoleacr-etdvg4cthscffqdf.azurecr.io'
+  publishHelmChart: true
+  helmChartPath: 'deploy/kubernetes/helm/meridian-console'
+  helmChartRoot: 'deploy/kubernetes/helm'
+  helmChartName: 'meridian-console'
+  helmVersion: '3.13.0'
+  acrName: 'meridianconsoleacr'
 
 stages:
   - stage: Package
@@ -50,3 +56,15 @@ stages:
             parameters:
               service: ${{ svc }}
               buildConfiguration: ${{ parameters.buildConfiguration }}
+
+      # Publish Helm chart to ACR
+      - ${{ if eq(parameters.publishHelmChart, true) }}:
+        - template: ../Jobs/PackageHelm.yml
+          parameters:
+            chartPath: ${{ parameters.helmChartPath }}
+            chartRoot: ${{ parameters.helmChartRoot }}
+            chartName: ${{ parameters.helmChartName }}
+            acrName: ${{ parameters.acrName }}
+            acrLoginServer: ${{ parameters.acrLoginServer }}
+            acrServiceConnection: ${{ parameters.acrServiceConnection }}
+            helmVersion: ${{ parameters.helmVersion }}

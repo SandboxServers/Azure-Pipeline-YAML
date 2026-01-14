@@ -1,0 +1,109 @@
+# Kubernetes Deploy Stage
+# Deploys the Helm chart to a Kubernetes cluster
+
+parameters:
+  environment: 'dev'
+  namespace: ''
+  kubernetesServiceConnection: ''
+  acrServiceConnection: ''
+  acrName: 'meridianconsoleacr'
+  acrLoginServer: 'meridianconsoleacr-etdvg4cthscffqdf.azurecr.io'
+  helmChartName: 'meridian-console'
+  helmVersion: '3.13.0'
+  releaseName: 'meridian'
+  imageTag: '$(Build.BuildId)'
+
+stages:
+  - stage: Deploy_${{ parameters.environment }}
+    displayName: 'Deploy (${{ parameters.environment }})'
+    dependsOn:
+      - Package
+      - ${{ if eq(parameters.environment, 'qa') }}:
+        - Deploy_dev
+      - ${{ if eq(parameters.environment, 'prod') }}:
+        - Deploy_qa
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+    variables:
+      Namespace: ${{ coalesce(parameters.namespace, parameters.environment) }}
+      HelmChartVersion: $[ stageDependencies.Package.PackageHelm.outputs['helmPublish.HelmChartVersion'] ]
+    jobs:
+      - deployment: DeployKubernetes_${{ parameters.environment }}
+        displayName: 'Helm deploy (${{ parameters.environment }})'
+        environment: 'meridian-${{ parameters.environment }}'
+        pool:
+          name: 'Sandbox Servers Agents'
+        strategy:
+          runOnce:
+            deploy:
+              steps:
+                - checkout: self
+                  fetchDepth: 0
+
+                - task: HelmInstaller@1
+                  displayName: 'Install Helm ${{ parameters.helmVersion }}'
+                  inputs:
+                    helmVersionToInstall: '${{ parameters.helmVersion }}'
+
+                - task: Kubernetes@1
+                  displayName: 'Login to Kubernetes'
+                  inputs:
+                    connectionType: 'Kubernetes Service Connection'
+                    kubernetesServiceEndpoint: ${{ parameters.kubernetesServiceConnection }}
+                    command: 'login'
+
+                - task: AzureCLI@2
+                  displayName: 'Login to ACR for Helm OCI'
+                  inputs:
+                    azureSubscription: ${{ parameters.acrServiceConnection }}
+                    scriptType: 'bash'
+                    scriptLocation: 'inlineScript'
+                    inlineScript: |
+                      set -euo pipefail
+
+                      ACR_NAME="${{ parameters.acrName }}"
+                      ACR_LOGIN_SERVER="${{ parameters.acrLoginServer }}"
+
+                      az acr login --name "$ACR_NAME"
+
+                      ACCESS_TOKEN="$(az acr login --name "$ACR_NAME" --expose-token --output tsv --query accessToken)"
+                      echo "$ACCESS_TOKEN" | helm registry login "$ACR_LOGIN_SERVER" \
+                        --username 00000000-0000-0000-0000-000000000000 \
+                        --password-stdin
+
+                - bash: |
+                    set -euo pipefail
+
+                    ACR_LOGIN_SERVER="${{ parameters.acrLoginServer }}"
+                    CHART_NAME="${{ parameters.helmChartName }}"
+                    RELEASE_NAME="${{ parameters.releaseName }}"
+                    NAMESPACE="$(Namespace)"
+                    IMAGE_TAG="${{ parameters.imageTag }}"
+                    CHART_VERSION="$(HelmChartVersion)"
+
+                    chart_ref="oci://${ACR_LOGIN_SERVER}/helm/${CHART_NAME}"
+                    version_arg=""
+                    if [ -n "$CHART_VERSION" ] && [ "$CHART_VERSION" != "null" ]; then
+                      version_arg="--version $CHART_VERSION"
+                    fi
+
+                    echo "Deploying chart $chart_ref $version_arg to namespace $NAMESPACE"
+
+                    helm upgrade --install "$RELEASE_NAME" "$chart_ref" \
+                      --namespace "$NAMESPACE" \
+                      --create-namespace \
+                      $version_arg \
+                      --set-string global.imageRegistry="$ACR_LOGIN_SERVER" \
+                      --set-string gateway.image.tag="$IMAGE_TAG" \
+                      --set-string identity.image.tag="$IMAGE_TAG" \
+                      --set-string billing.image.tag="$IMAGE_TAG" \
+                      --set-string servers.image.tag="$IMAGE_TAG" \
+                      --set-string nodes.image.tag="$IMAGE_TAG" \
+                      --set-string tasks.image.tag="$IMAGE_TAG" \
+                      --set-string files.image.tag="$IMAGE_TAG" \
+                      --set-string mods.image.tag="$IMAGE_TAG" \
+                      --set-string console.image.tag="$IMAGE_TAG" \
+                      --set-string notifications.image.tag="$IMAGE_TAG" \
+                      --set-string firewall.image.tag="$IMAGE_TAG" \
+                      --set-string secrets.image.tag="$IMAGE_TAG" \
+                      --set-string discord.image.tag="$IMAGE_TAG"
+                  displayName: 'Helm upgrade'

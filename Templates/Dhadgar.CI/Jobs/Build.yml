@@ -53,7 +53,6 @@ jobs:
       - template: ../../Standalone/Steps/DotNet/PublishCoverageArtifact.yml
         parameters:
           resultsDirectory: $(TestResultsDir)
-          artifactName: "coverage-input"
 
   - pwsh: |
       $projectPath = '${{ parameters.service.projectPath }}'

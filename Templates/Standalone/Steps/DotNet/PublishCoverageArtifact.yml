@@ -1,6 +1,6 @@
 parameters:
   resultsDirectory: '$(Agent.TempDirectory)/testresults'
-  artifactName: 'coverage-input'
+  artifactName: 'coverage-input-$(System.JobName)'
 
 steps:
 - pwsh: |
