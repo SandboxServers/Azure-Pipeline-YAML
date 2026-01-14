@@ -31,10 +31,12 @@ stages:
   - job: MergeCoverage
     displayName: 'Merge coverage'
     steps:
-    - download: current
+    - task: DownloadPipelineArtifact@2
       displayName: 'Download coverage inputs'
-      patterns: '**/coverage.cobertura.xml'
-      path: $(Pipeline.Workspace)/coverage-input
+      inputs:
+        buildType: 'current'
+        patterns: '**/coverage.cobertura.xml'
+        targetPath: $(Pipeline.Workspace)/coverage-input
 
     - pwsh: |
         $root = "$(Pipeline.Workspace)/coverage-input"
