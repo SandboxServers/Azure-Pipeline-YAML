@@ -7,6 +7,7 @@
 parameters:
   serviceName: ''
   environment: 'dev'
+  agentDemand: ''
   acrServiceConnection: ''
   acrLoginServer: ''
   composeProjectPath: 'deploy/compose'
@@ -19,6 +20,9 @@ jobs:
     environment: 'meridian-${{ parameters.environment }}'
     pool:
       name: 'Sandbox Servers Agents'
+      ${{ if ne(parameters.agentDemand, '') }}:
+        demands:
+          - ${{ parameters.agentDemand }}
     strategy:
       runOnce:
         deploy:

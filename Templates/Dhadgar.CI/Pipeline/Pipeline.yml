@@ -23,6 +23,10 @@ parameters:
 - name: deploy
   type: boolean
   default: true
+# Local dev compose deploys (agent demand selector for localdev stage)
+- name: localAgentDemand
+  type: string
+  default: ''
 # Infrastructure provisioning parameters
 - name: provisionInfrastructure
   type: boolean
@@ -32,9 +36,11 @@ parameters:
   default: false
 - name: environment
   type: string
-  default: 'dev'
+  default: 'localdev'
   values:
+    - localdev
     - dev
+    - qa
     - staging
     - prod
 - name: azureServiceConnection
@@ -102,6 +108,7 @@ stages:
       services: ${{ parameters.services }}
       servicesCsvNormalized: ${{ parameters.servicesCsvNormalized }}
       environment: ${{ parameters.environment }}
+      localAgentDemand: ${{ parameters.localAgentDemand }}
       acrServiceConnection: ${{ parameters.acrServiceConnection }}
       acrLoginServer: ${{ parameters.acrLoginServer }}
       deploy: ${{ parameters.deploy }}

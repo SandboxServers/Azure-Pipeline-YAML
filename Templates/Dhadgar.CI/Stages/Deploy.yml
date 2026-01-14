@@ -10,7 +10,8 @@
 parameters:
   services: []
   servicesCsvNormalized: ',,'
-  environment: 'dev'
+  environment: 'localdev'
+  localAgentDemand: ''
   acrServiceConnection: 'meridianconsoleacr'
   acrLoginServer: 'meridianconsoleacr-etdvg4cthscffqdf.azurecr.io'
   deploy: true
@@ -20,15 +21,15 @@ parameters:
   infraComposeFile: 'docker-compose.dev.yml'
 
 stages:
-  - stage: Deploy_${{ parameters.environment }}
-    displayName: 'Deploy (${{ parameters.environment }})'
+  - stage: LocalDev
+    displayName: 'Local Dev'
     dependsOn:
       - Package  # Depends on Package stage for container images and binary artifacts
       - ${{ if eq(parameters.environment, 'staging') }}:
         - Deploy_dev
       - ${{ if eq(parameters.environment, 'prod') }}:
         - Deploy_staging
-    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'), eq('${{ parameters.deploy }}', 'true'))
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'), eq('${{ parameters.deploy }}', 'true'), eq('${{ parameters.environment }}', 'localdev'))
     variables:
       Environment: ${{ parameters.environment }}
     jobs:
@@ -46,6 +47,7 @@ stages:
             parameters:
               serviceName: ${{ svc.id }}
               environment: ${{ parameters.environment }}
+              agentDemand: ${{ parameters.localAgentDemand }}
               acrServiceConnection: ${{ parameters.acrServiceConnection }}
               acrLoginServer: ${{ parameters.acrLoginServer }}
               composeProjectPath: ${{ parameters.composeProjectPath }}
