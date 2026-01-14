@@ -9,6 +9,7 @@ parameters:
   includePreview: true
   runTests: true
   collectCoverage: true
+  publishArtifacts: true
 
 jobs:
 - job: Build_${{ replace(parameters.service.id, '.', '_') }}
@@ -58,6 +59,7 @@ jobs:
 
   - task: PublishPipelineArtifact@1
     displayName: 'Publish build outputs (bin/)'
+    condition: and(succeeded(), eq('${{ parameters.publishArtifacts }}', 'true'))
     inputs:
       targetPath: '$(Build.SourcesDirectory)/$(ProjectDir)/bin/${{ parameters.buildConfiguration }}'
       artifactName: "src-${{ replace(parameters.service.id, '.', '_') }}"

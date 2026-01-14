@@ -21,3 +21,4 @@ stages:
           includePreview: ${{ parameters.includePreview }}
           runTests: ${{ parameters.runTests }}
           collectCoverage: ${{ parameters.collectCoverage }}
+          publishArtifacts: ${{ and(not(startsWith(svc.projectPath, 'tests/')), not(startsWith(svc.projectPath, 'src/Shared/'))) }}
