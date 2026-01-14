@@ -37,8 +37,7 @@ stages:
           runOnce:
             deploy:
               steps:
-                - checkout: self
-                  fetchDepth: 0
+                - checkout: none
 
                 - task: HelmInstaller@1
                   displayName: 'Install Helm ${{ parameters.helmVersion }}'

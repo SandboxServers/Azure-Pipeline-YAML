@@ -31,6 +31,15 @@ parameters:
 - name: publishHelmChart
   type: boolean
   default: true
+- name: publishComposeAssets
+  type: boolean
+  default: true
+- name: composeAssetPath
+  type: string
+  default: 'deploy/compose'
+- name: composeAssetArtifactName
+  type: string
+  default: 'compose-assets'
 - name: helmChartPath
   type: string
   default: 'deploy/kubernetes/helm/meridian-console'
@@ -107,6 +116,9 @@ stages:
     servicesCsvNormalized: ${{ parameters.servicesCsvNormalized }}
     buildConfiguration: ${{ parameters.buildConfiguration }}
     publishHelmChart: ${{ parameters.publishHelmChart }}
+    publishComposeAssets: ${{ parameters.publishComposeAssets }}
+    composeAssetPath: ${{ parameters.composeAssetPath }}
+    composeAssetArtifactName: ${{ parameters.composeAssetArtifactName }}
     helmChartPath: ${{ parameters.helmChartPath }}
     helmChartRoot: ${{ parameters.helmChartRoot }}
     helmChartName: ${{ parameters.helmChartName }}

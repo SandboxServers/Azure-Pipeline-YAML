@@ -10,6 +10,8 @@ parameters:
   agentDemand: ''
   acrServiceConnection: ''
   acrLoginServer: ''
+  composeAssetArtifactName: 'compose-assets'
+  composeAssetPath: 'compose'
   composeProjectPath: 'deploy/compose'
   composeFile: 'docker-compose.services.acr.yml'  # Use ACR images
   infraComposeFile: 'docker-compose.dev.yml'
@@ -28,8 +30,14 @@ jobs:
       runOnce:
         deploy:
           steps:
-            - checkout: self
-              fetchDepth: 1
+            - checkout: none
+
+            - task: DownloadPipelineArtifact@2
+              displayName: 'Download compose assets'
+              inputs:
+                buildType: 'current'
+                artifactName: ${{ parameters.composeAssetArtifactName }}
+                targetPath: '$(Pipeline.Workspace)/${{ parameters.composeAssetPath }}'
 
             # Login to ACR to pull images
             - task: Docker@2
@@ -43,7 +51,7 @@ jobs:
               displayName: 'Ensure infrastructure is running'
               inputs:
                 targetType: 'inline'
-                workingDirectory: '$(Build.SourcesDirectory)/${{ parameters.composeProjectPath }}'
+                workingDirectory: '$(Pipeline.Workspace)/${{ parameters.composeAssetPath }}'
                 script: |
                   set -euo pipefail
 
@@ -67,7 +75,7 @@ jobs:
               displayName: 'Pull latest images'
               inputs:
                 targetType: 'inline'
-                workingDirectory: '$(Build.SourcesDirectory)/${{ parameters.composeProjectPath }}'
+                workingDirectory: '$(Pipeline.Workspace)/${{ parameters.composeAssetPath }}'
                 script: |
                   set -euo pipefail
 
@@ -82,7 +90,7 @@ jobs:
               displayName: 'Deploy service'
               inputs:
                 targetType: 'inline'
-                workingDirectory: '$(Build.SourcesDirectory)/${{ parameters.composeProjectPath }}'
+                workingDirectory: '$(Pipeline.Workspace)/${{ parameters.composeAssetPath }}'
                 script: |
                   set -euo pipefail
 

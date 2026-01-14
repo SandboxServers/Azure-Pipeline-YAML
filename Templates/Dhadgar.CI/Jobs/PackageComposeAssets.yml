@@ -1,0 +1,37 @@
+# Package Compose Assets Job
+# Publishes the docker-compose assets needed for localdev deployments
+
+parameters:
+  composePath: 'deploy/compose'
+  artifactName: 'compose-assets'
+
+jobs:
+  - job: PackageComposeAssets
+    displayName: 'Package: Compose assets'
+    pool:
+      name: 'Sandbox Servers Agents'
+    steps:
+      - checkout: self
+        fetchDepth: 0
+
+      - bash: |
+          set -euo pipefail
+
+          source_dir="$(Build.SourcesDirectory)/${{ parameters.composePath }}"
+          target_dir="$(Build.ArtifactStagingDirectory)/compose"
+
+          mkdir -p "$target_dir"
+          if [ ! -d "$source_dir" ]; then
+            echo "Compose source directory not found: $source_dir"
+            exit 1
+          fi
+
+          tar -C "$source_dir" --exclude='.env' -cf - . | tar -C "$target_dir" -xf -
+        displayName: 'Stage compose assets'
+
+      - task: PublishPipelineArtifact@1
+        displayName: 'Publish compose assets'
+        inputs:
+          targetPath: '$(Build.ArtifactStagingDirectory)/compose'
+          artifactName: '${{ parameters.artifactName }}'
+          publishLocation: 'pipeline'

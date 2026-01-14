@@ -18,6 +18,9 @@ parameters:
   helmChartName: 'meridian-console'
   helmVersion: '3.13.0'
   acrName: 'meridianconsoleacr'
+  publishComposeAssets: true
+  composeAssetPath: 'deploy/compose'
+  composeAssetArtifactName: 'compose-assets'
 
 stages:
   - stage: Package
@@ -68,3 +71,10 @@ stages:
             acrLoginServer: ${{ parameters.acrLoginServer }}
             acrServiceConnection: ${{ parameters.acrServiceConnection }}
             helmVersion: ${{ parameters.helmVersion }}
+
+      # Publish compose assets for localdev deploys
+      - ${{ if eq(parameters.publishComposeAssets, true) }}:
+        - template: ../Jobs/PackageComposeAssets.yml
+          parameters:
+            composePath: ${{ parameters.composeAssetPath }}
+            artifactName: ${{ parameters.composeAssetArtifactName }}

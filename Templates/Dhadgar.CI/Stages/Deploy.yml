@@ -12,6 +12,8 @@ parameters:
   servicesCsvNormalized: ',,'
   environment: 'localdev'
   localAgentDemand: ''
+  composeAssetArtifactName: 'compose-assets'
+  composeAssetPath: 'compose'
   acrServiceConnection: 'meridianconsoleacr'
   acrLoginServer: 'meridianconsoleacr-etdvg4cthscffqdf.azurecr.io'
   deploy: true
@@ -48,6 +50,8 @@ stages:
               serviceName: ${{ svc.id }}
               environment: ${{ parameters.environment }}
               agentDemand: ${{ parameters.localAgentDemand }}
+              composeAssetArtifactName: ${{ parameters.composeAssetArtifactName }}
+              composeAssetPath: ${{ parameters.composeAssetPath }}
               acrServiceConnection: ${{ parameters.acrServiceConnection }}
               acrLoginServer: ${{ parameters.acrLoginServer }}
               composeProjectPath: ${{ parameters.composeProjectPath }}

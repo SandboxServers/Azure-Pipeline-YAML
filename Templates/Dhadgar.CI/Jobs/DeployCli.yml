@@ -22,6 +22,7 @@ jobs:
       runOnce:
         deploy:
           steps:
+            - checkout: none
             # Download CLI artifacts from Package stage
             - task: DownloadPipelineArtifact@2
               displayName: 'Download CLI artifacts'
