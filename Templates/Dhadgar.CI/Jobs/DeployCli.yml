@@ -17,12 +17,12 @@ jobs:
     environment: 'meridian-${{ parameters.environment }}'
     pool:
       name: 'Sandbox Servers Agents'
-    download: none
     strategy:
       runOnce:
         deploy:
           steps:
             - checkout: none
+            - download: none
             # Download CLI artifacts from Package stage
             - task: DownloadPipelineArtifact@2
               displayName: 'Download CLI artifacts'
