@@ -1,11 +1,11 @@
 parameters:
   resultsDirectory: '$(Agent.TempDirectory)/testresults'
-  artifactName: 'coverage'
+  artifactName: 'coverage-input'
 
 steps:
 - pwsh: |
     $source = "${{ parameters.resultsDirectory }}"
-    $target = "$(Build.ArtifactStagingDirectory)/coverage-input"
+    $target = "$(Build.ArtifactStagingDirectory)/coverage-input/$(System.JobName)"
 
     if (Test-Path $target) {
       Remove-Item -Recurse -Force $target
@@ -16,9 +16,11 @@ steps:
     $files = Get-ChildItem -Path $source -Recurse -Filter "coverage.cobertura.xml" -ErrorAction SilentlyContinue
     if (-not $files) {
       Write-Host "No coverage files found under $source"
+      Write-Host "##vso[task.setvariable variable=CoverageInputsFound]false"
       exit 0
     }
 
+    Write-Host "##vso[task.setvariable variable=CoverageInputsFound]true"
     foreach ($file in $files) {
       $destDir = Join-Path $target $file.Directory.Name
       New-Item -ItemType Directory -Path $destDir -Force | Out-Null
@@ -28,7 +30,7 @@ steps:
 
 - task: PublishPipelineArtifact@1
   displayName: 'Publish coverage inputs'
-  condition: succeededOrFailed()
+  condition: and(succeededOrFailed(), eq(variables['CoverageInputsFound'], 'true'))
   inputs:
     targetPath: '$(Build.ArtifactStagingDirectory)/coverage-input'
     artifactName: '${{ parameters.artifactName }}'

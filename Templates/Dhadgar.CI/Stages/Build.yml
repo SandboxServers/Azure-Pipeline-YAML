@@ -35,7 +35,8 @@ stages:
       displayName: 'Download coverage inputs'
       inputs:
         buildType: 'current'
-        patterns: '**/coverage.cobertura.xml'
+        artifactName: 'coverage-input'
+        itemPattern: '**/coverage.cobertura.xml'
         targetPath: $(Pipeline.Workspace)/coverage-input
 
     - pwsh: |
