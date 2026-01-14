@@ -14,7 +14,6 @@ steps:
         publishTestResults: false
         arguments: >
           -c ${{ parameters.buildConfiguration }}
-          --no-build
           --logger "trx"
           --results-directory "${{ parameters.resultsDirectory }}"
           --collect "XPlat Code Coverage"
@@ -27,7 +26,6 @@ steps:
         publishTestResults: false
         arguments: >
           -c ${{ parameters.buildConfiguration }}
-          --no-build
           --logger "trx"
           --results-directory "${{ parameters.resultsDirectory }}"
 - task: PublishTestResults@2
