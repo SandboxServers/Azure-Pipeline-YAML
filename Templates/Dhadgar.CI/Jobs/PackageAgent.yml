@@ -15,7 +15,6 @@ parameters:
 jobs:
   - job: PackageAgent_${{ replace(parameters.service.id, '.', '_') }}
     displayName: 'Package Agent: ${{ parameters.service.id }}'
-    dependsOn: Build_${{ replace(parameters.service.id, '.', '_') }}
     condition: succeeded()
     pool:
       name: 'Sandbox Servers Agents'

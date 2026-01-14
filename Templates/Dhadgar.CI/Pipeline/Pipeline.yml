@@ -102,7 +102,6 @@ stages:
       services: ${{ parameters.services }}
       servicesCsvNormalized: ${{ parameters.servicesCsvNormalized }}
       environment: ${{ parameters.environment }}
-      azureServiceConnection: ${{ parameters.azureServiceConnection }}
       acrServiceConnection: ${{ parameters.acrServiceConnection }}
       acrLoginServer: ${{ parameters.acrLoginServer }}
       deploy: ${{ parameters.deploy }}

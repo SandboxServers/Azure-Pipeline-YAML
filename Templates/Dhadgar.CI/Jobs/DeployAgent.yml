@@ -1,5 +1,5 @@
 # Deploy Agent Job
-# Downloads Agent artifacts from Package stage and distributes to storage
+# Downloads Agent artifacts from Package stage and publishes to GitHub Releases
 #
 # This job expects artifacts from PackageAgent job in Package stage
 
@@ -8,9 +8,8 @@ parameters:
   environment: 'dev'
   projectPath: ''  # Not used for building anymore, kept for compatibility
   runtimes: 'win-x64;linux-x64'  # Not used for building anymore
-  storageAccount: ''
-  containerName: 'agent-releases'
-  azureServiceConnection: 'Azure-Sub'
+  publishToGitHub: true
+  isPreRelease: true
 
 jobs:
   - deployment: DeployAgent_${{ replace(parameters.serviceName, '.', '_') }}
@@ -30,47 +29,29 @@ jobs:
                 artifactName: agent-${{ replace(parameters.serviceName, '.', '_') }}
                 targetPath: '$(Pipeline.Workspace)/agent-artifacts'
 
-            # Upload to Azure Storage (if configured)
-            - ${{ if ne(parameters.storageAccount, '') }}:
-              - task: AzureCLI@2
-                displayName: 'Upload to Azure Storage'
+            - ${{ if eq(parameters.publishToGitHub, true) }}:
+              - task: GitHubRelease@1
+                displayName: 'Create GitHub Release'
+                condition: succeeded()
                 inputs:
-                  azureSubscription: ${{ parameters.azureServiceConnection }}
-                  scriptType: 'bash'
-                  scriptLocation: 'inlineScript'
-                  inlineScript: |
-                    set -euo pipefail
+                  gitHubConnection: 'github.com_SandboxServers'
+                  repositoryName: '$(Build.Repository.Name)'
+                  action: 'create'
+                  target: '$(Build.SourceVersion)'
+                  tagSource: 'userSpecifiedTag'
+                  tag: "agent-${{ replace(parameters.serviceName, 'Dhadgar.', '') }}-v$(Build.BuildNumber)"
+                  title: "Agent Release: ${{ parameters.serviceName }} v$(Build.BuildNumber)"
+                  isPreRelease: ${{ parameters.isPreRelease }}
+                  releaseNotesSource: 'inline'
+                  releaseNotesInline: |
+                    ## Agent Release v$(Build.BuildNumber)
 
-                    STORAGE_ACCOUNT="${{ parameters.storageAccount }}"
-                    CONTAINER="${{ parameters.containerName }}"
-                    VERSION="$(Build.BuildNumber)"
-                    ENV="${{ parameters.environment }}"
-                    ARTIFACTS_DIR="$(Pipeline.Workspace)/agent-artifacts"
+                    **Agent:** ${{ parameters.serviceName }}
+                    **Environment:** ${{ parameters.environment }}
+                    **Build:** $(Build.BuildNumber)
 
-                    echo "Uploading Agent artifacts to Azure Storage..."
-
-                    # Upload all archives
-                    for file in "$ARTIFACTS_DIR"/*; do
-                      if [ -f "$file" ]; then
-                        filename=$(basename "$file")
-                        echo "Uploading $filename to $STORAGE_ACCOUNT/$CONTAINER/$ENV/$VERSION/"
-
-                        az storage blob upload \
-                          --account-name "$STORAGE_ACCOUNT" \
-                          --container-name "$CONTAINER" \
-                          --name "$ENV/$VERSION/$filename" \
-                          --file "$file" \
-                          --overwrite
-                      fi
-                    done
-
-                    # Update latest pointer
-                    echo "$VERSION" > /tmp/latest.txt
-                    az storage blob upload \
-                      --account-name "$STORAGE_ACCOUNT" \
-                      --container-name "$CONTAINER" \
-                      --name "$ENV/latest.txt" \
-                      --file /tmp/latest.txt \
-                      --overwrite
-
-                    echo "Agent artifacts uploaded successfully."
+                    ### Downloads
+                    - Windows (x64): `${{ replace(parameters.serviceName, 'Dhadgar.', '') }}-win-x64.zip`
+                    - Linux (x64): `${{ replace(parameters.serviceName, 'Dhadgar.', '') }}-linux-x64.tar.gz`
+                  assets: '$(Pipeline.Workspace)/agent-artifacts/*'
+                  addChangeLog: true

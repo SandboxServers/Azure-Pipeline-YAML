@@ -14,7 +14,6 @@ parameters:
 jobs:
   - job: BuildContainer_${{ replace(parameters.service.id, '.', '_') }}
     displayName: 'Container: ${{ parameters.service.id }}'
-    dependsOn: Build_${{ replace(parameters.service.id, '.', '_') }}
     condition: succeeded()
     pool:
       name: 'Sandbox Servers Agents'
