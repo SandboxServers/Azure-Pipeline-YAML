@@ -50,9 +50,15 @@ jobs:
         parameters:
           resultsDirectory: $(TestResultsDir)
 
+  - pwsh: |
+      $projectPath = '${{ parameters.service.projectPath }}'
+      $projectDir = Split-Path $projectPath -Parent
+      Write-Host "##vso[task.setvariable variable=ProjectDir]$projectDir"
+    displayName: 'Resolve project directory'
+
   - task: PublishPipelineArtifact@1
     displayName: 'Publish build outputs (bin/)'
     inputs:
-      targetPath: '$(Build.SourcesDirectory)'
+      targetPath: '$(Build.SourcesDirectory)/$(ProjectDir)/bin/${{ parameters.buildConfiguration }}'
       artifactName: "src-${{ replace(parameters.service.id, '.', '_') }}"
       publishLocation: 'pipeline'
