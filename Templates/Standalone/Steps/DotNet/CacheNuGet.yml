@@ -1,10 +1,11 @@
 parameters:
   keySuffix: ''
+  cacheVersion: 'v2'
 steps:
 - task: Cache@2
   displayName: 'Cache NuGet packages'
   inputs:
-    key: 'nuget | "$(Agent.OS)" | $(Build.SourcesDirectory)/Directory.Packages.props | $(Build.SourcesDirectory)/global.json | ${{ parameters.keySuffix }}'
+    key: 'nuget | ${{ parameters.cacheVersion }} | "$(Agent.OS)" | $(Build.SourcesDirectory)/Directory.Packages.props | $(Build.SourcesDirectory)/global.json | ${{ parameters.keySuffix }}'
     restoreKeys: |
       nuget | "$(Agent.OS)"
     path: $(NUGET_PACKAGES)
