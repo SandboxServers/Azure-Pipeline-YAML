@@ -31,8 +31,8 @@ parameters:
   dependsOn: ['Build']
   condition: succeeded()
   pool:
-    vmImage: 'ubuntu-latest'
-
+    name: Sandbox Servers Agents
+  
   # Paths (use pipeline variables)
   sourceDirectory: '$(Build.SourcesDirectory)'
   artifactStagingDirectory: '$(Build.ArtifactStagingDirectory)'
@@ -350,3 +350,82 @@ stages:
                 inputs:
                   targetPath: "${{ parameters.artifactStagingDirectory }}"
                   artifactName: "sbom-${{ replace(artifact.name, '-', '_') }}"
+
+      # Job 7: Post Results to GitHub PR (only on PR builds)
+      - job: PostToGitHubPR
+        displayName: 'Post Results to GitHub PR'
+        dependsOn:
+          - SAST
+          - SCA
+          - ContainerScan_container_Dhadgar_Billing
+          - ContainerScan_container_Dhadgar_Console
+          - ContainerScan_container_Dhadgar_Discord
+          - ContainerScan_container_Dhadgar_Files
+          - ContainerScan_container_Dhadgar_Firewall
+          - ContainerScan_container_Dhadgar_Gateway
+          - ContainerScan_container_Dhadgar_Identity
+          - ContainerScan_container_Dhadgar_Mods
+          - ContainerScan_container_Dhadgar_Nodes
+          - ContainerScan_container_Dhadgar_Notifications
+          - ContainerScan_container_Dhadgar_Secrets
+          - ContainerScan_container_Dhadgar_Servers
+          - ContainerScan_container_Dhadgar_Tasks
+          - IacScan
+          - SecretScan
+        condition: and(always(), eq(variables['Build.Reason'], 'PullRequest'))
+        pool: ${{ parameters.pool }}
+        steps:
+          - checkout: none
+
+          # Download all security artifacts
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download SAST results'
+            continueOnError: true
+            inputs:
+              artifactName: 'security-sast-semgrep'
+              targetPath: '$(Pipeline.Workspace)/security-artifacts'
+
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download SCA results'
+            continueOnError: true
+            inputs:
+              artifactName: 'security-sca-owasp'
+              targetPath: '$(Pipeline.Workspace)/security-artifacts'
+
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download Container scan results'
+            continueOnError: true
+            inputs:
+              pattern: 'security-container-*'
+              targetPath: '$(Pipeline.Workspace)/security-artifacts'
+
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download IaC scan results'
+            continueOnError: true
+            inputs:
+              artifactName: 'security-iac-checkov'
+              targetPath: '$(Pipeline.Workspace)/security-artifacts'
+
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download Secret scan results'
+            continueOnError: true
+            inputs:
+              artifactName: 'security-secrets-gitleaks'
+              targetPath: '$(Pipeline.Workspace)/security-artifacts'
+
+          # Post results to GitHub PR
+          - task: PowerShell@2
+            displayName: 'Post findings to GitHub PR'
+            env:
+              GITHUB_TOKEN: $(GITHUB_PAT)
+            inputs:
+              targetType: 'filePath'
+              filePath: '$(Build.SourcesDirectory)/scripts/Post-SecurityFindings.ps1'
+              arguments: >
+                -GitHubToken $env:GITHUB_TOKEN
+                -RepoOwner "$(Build.Repository.Name.Split('/')[0])"
+                -RepoName "$(Build.Repository.Name.Split('/')[1])"
+                -PullRequestNumber $(System.PullRequest.PullRequestNumber)
+                -ArtifactsPath "$(Pipeline.Workspace)/security-artifacts"
+                -BuildUrl "$(System.CollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=results"
+              pwsh: true
