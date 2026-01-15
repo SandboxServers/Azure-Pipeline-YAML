@@ -466,21 +466,12 @@ stages:
               itemPattern: '**/*.sarif'
               targetPath: '$(Pipeline.Workspace)/sarif-results'
 
-          # Publish SARIF files for Microsoft Security DevOps extension
-          - task: PublishSecurityAnalysisLogs@3
-            displayName: 'Publish SARIF to Security DevOps'
+          # Publish SARIF files as CodeAnalysisLogs artifact
+          # Microsoft Security DevOps extension automatically discovers this artifact
+          - task: PublishBuildArtifacts@1
+            displayName: 'Publish SARIF to CodeAnalysisLogs'
             continueOnError: true
             inputs:
+              PathtoPublish: '$(Pipeline.Workspace)/sarif-results'
               ArtifactName: 'CodeAnalysisLogs'
-              ArtifactType: 'Container'
-              AllTools: true
-              ToolLogsNotFoundAction: 'Standard'
-
-          # Post-analysis for Microsoft Security DevOps (enables Security tab)
-          - task: PostAnalysis@2
-            displayName: 'Post Analysis to Security DevOps'
-            continueOnError: true
-            inputs:
-              GdnBreakAllTools: false
-              GdnBreakPolicy: 'Microsoft'
-              GdnBreakPolicyMinSev: 'Warning'
+              publishLocation: 'Container'

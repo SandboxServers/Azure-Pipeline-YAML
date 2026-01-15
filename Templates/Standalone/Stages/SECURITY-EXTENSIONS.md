@@ -16,8 +16,8 @@ The Security stage integrates with Azure DevOps marketplace extensions to displa
 
 **How we use it**:
 The `PublishToSecurityDevOps` job (Job 8) uploads SARIF files using:
-- `PublishSecurityAnalysisLogs@3` - Uploads SARIF files to artifact storage
-- `PostAnalysis@2` - Processes SARIF and populates Security tab
+- `DownloadPipelineArtifact@2` - Downloads all SARIF artifacts from scanner jobs
+- `PublishBuildArtifacts@1` - Publishes SARIF files to `CodeAnalysisLogs` artifact (extension automatically discovers this)
 
 **Where to view results**:
 ```
@@ -95,8 +95,8 @@ stages:
 
 3. **PublishToSecurityDevOps** (Job 8) → Microsoft Security DevOps
    - Downloads all SARIF artifacts
-   - Uploads to `PublishSecurityAnalysisLogs@3`
-   - Triggers `PostAnalysis@2` to populate Security tab
+   - Publishes to `CodeAnalysisLogs` artifact using `PublishBuildArtifacts@1`
+   - Extension automatically discovers and populates Security tab
 
 ## Viewing Results After Pipeline Run
 
@@ -166,22 +166,12 @@ If the build was triggered by a PR, check the PR for comments from `spirit-of-th
 
 ### Microsoft Security DevOps Settings
 
-To configure breaking policies (fail build on findings):
+The extension automatically discovers SARIF files published to the `CodeAnalysisLogs` artifact. No additional configuration is required.
 
-1. Go to: **Project Settings** → **Extensions** → **Microsoft Security DevOps**
-2. Configure:
-   - **Break Policy**: Microsoft (default) or Custom
-   - **Min Severity**: Warning (default), Error, or Note
-   - **Excluded Scanners**: None or specific tools to ignore
-
-**Current configuration** (in `PostAnalysis@2` task):
-```yaml
-GdnBreakAllTools: false  # Don't fail build on findings
-GdnBreakPolicy: 'Microsoft'
-GdnBreakPolicyMinSev: 'Warning'
-```
-
-This means findings are **reported but don't block the build**.
+**Current pipeline behavior**:
+- All scanners use `continueOnError: true` - findings are reported but don't block the build
+- SARIF files are automatically processed and displayed in the Security tab
+- Findings appear within minutes of pipeline completion
 
 ### SARIF SAST Scans Tab Settings
 
@@ -231,11 +221,12 @@ No configuration needed - works automatically!
 1. Verify extension is installed: **Organization Settings** → **Extensions** → Search "Microsoft Security DevOps"
 2. Wait for `PublishToSecurityDevOps` job to complete (Job 8)
 3. Refresh the repository page
-4. Check logs for `PostAnalysis@2` task errors
+4. Check logs for `PublishBuildArtifacts@1` task errors
 
-**Common error**: "No SARIF files found"
+**Common error**: "No files found"
 - The `DownloadPipelineArtifact@2` task failed
 - Check that scanners completed and published artifacts
+- Verify the `CodeAnalysisLogs` artifact exists in the Artifacts tab
 
 ### "Duplicate findings in Security tab"
 
@@ -247,17 +238,23 @@ No configuration needed - works automatically!
 
 **Fix**: Mark duplicates as "False Positive" or "Won't Fix" in Security tab.
 
-### "PostAnalysis task fails with 'Guardian CLI not found'"
+### "CodeAnalysisLogs artifact is empty or missing"
 
-**Cause**: Microsoft Security DevOps extension uses Guardian CLI internally. If tasks fail:
+**Cause**: Scanner jobs failed to produce SARIF files or `DownloadPipelineArtifact@2` couldn't find them.
 
 **Fix**:
-```yaml
-# Add to PublishToSecurityDevOps job (already included)
-continueOnError: true  # Don't fail build if extension has issues
-```
+1. Check that individual scanner jobs completed successfully and published artifacts:
+   - `security-sast-semgrep`
+   - `security-sca-owasp`
+   - `security-container-*` (13 artifacts)
+   - `security-iac-checkov`
+   - `security-secrets-gitleaks`
 
-This is already configured - the job will warn but not block the build.
+2. Verify the `DownloadPipelineArtifact@2` task in Job 8 found files:
+   - Check logs for "Downloaded X artifact(s)"
+   - Look for warnings about missing artifacts
+
+3. The `PublishBuildArtifacts@1` task has `continueOnError: true` - check if it logged any warnings
 
 ## Cost Considerations
 
