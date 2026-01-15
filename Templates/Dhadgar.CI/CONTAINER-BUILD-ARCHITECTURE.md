@@ -448,12 +448,66 @@ Single Deploy stage per environment with environment-appropriate jobs:
 - ✅ **Coordinated deployment**: All artifacts deploy in one stage
 - ✅ **Multi-environment support**: Can deploy to multiple environments in single pipeline run
 
+## Pipeline Stage Dependencies
+
+### Infrastructure and Deployment Flow
+
+**Stage dependency chain:**
+```
+Build → Package → Publish → Infrastructure (optional) → Deploy
+```
+
+**Infrastructure stages** (when `provisionInfrastructure: true`):
+- Depend on `Publish` stage
+- Provision Azure resources (Key Vaults, App Registrations)
+- Configure Cloudflare DNS records (when `provisionDns: true`)
+
+**Deploy stages**:
+- **With infrastructure provisioning**: Depend on `Infrastructure_{environment}` stage
+- **Without infrastructure provisioning**: Depend on `Publish` stage
+
+This allows infrastructure to be provisioned after containers are published to ACR, and deployments wait for infrastructure to be ready.
+
+### Environment Approvals
+
+Deployment jobs use Azure DevOps environments to gate deployments:
+
+| Environment | Requires Approval | Purpose |
+|-------------|-------------------|---------|
+| `meridian-localdev` | ❌ No | Development testing on self-hosted hardware |
+| `meridian-dev` | ✅ Yes | Development environment in Kubernetes cluster |
+| `meridian-staging` | ✅ Yes | Pre-production environment for testing |
+| `meridian-prod` | ✅ Yes | Production environment with customer traffic |
+
+**How to configure approvals:**
+
+1. Navigate to **Pipelines → Environments** in Azure DevOps
+2. Click on the environment (e.g., `meridian-dev`)
+3. Click the **⋮** menu → **Approvals and checks**
+4. Add **Approvals** check
+5. Select approvers (users or groups)
+6. Configure optional settings:
+   - Timeout: How long to wait for approval before canceling
+   - Instructions: Guidance for approvers
+
+**Recommended approval workflow:**
+- **dev**: Single approver, 24-hour timeout (rapid iteration)
+- **staging**: Two approvers, 48-hour timeout (thorough testing)
+- **prod**: Two approvers + business hours check, 72-hour timeout (controlled releases)
+
+**Benefits:**
+- Prevents accidental production deployments
+- Provides audit trail of who approved deployments
+- Allows for deployment review and coordination
+- localdev bypasses approvals for rapid development iteration
+
 ## Related Documentation
 
 - Main pipeline: `Templates/Dhadgar.CI/Pipeline/Pipeline.yml`
 - Build stage: `Templates/Dhadgar.CI/Stages/Build.yml`
 - Package stage: `Templates/Dhadgar.CI/Stages/Package.yml`
-- Deploy stage: `Templates/Dhadgar.CI/Stages/Deploy.yml` (includes SWA, Compose, CLI, Agent deployments)
+- Deploy stage: `Templates/Dhadgar.CI/Stages/Deploy.yml` (includes SWA, Compose, CLI, Agent, Helm deployments)
+- Infrastructure stage: `Templates/Dhadgar.CI/Stages/Infrastructure.yml`
 - BuildContainer job: `Templates/Dhadgar.CI/Jobs/BuildContainer.yml`
 - PublishContainer job: `Templates/Dhadgar.CI/Jobs/PublishContainer.yml`
 - DeployComposeStack job: `Templates/Dhadgar.CI/Jobs/DeployComposeStack.yml`

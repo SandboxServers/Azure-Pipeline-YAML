@@ -192,6 +192,7 @@ stages:
         acrName: ${{ parameters.acrName }}
         buildConfiguration: ${{ parameters.buildConfiguration }}
         deploy: ${{ parameters.deploy }}
+        provisionInfrastructure: ${{ parameters.provisionInfrastructure }}
         kubernetesServiceConnection: ${{ parameters.kubernetesServiceConnection }}
         azureServiceConnection: ${{ parameters.azureServiceConnection }}
 
@@ -208,6 +209,7 @@ stages:
         acrName: ${{ parameters.acrName }}
         buildConfiguration: ${{ parameters.buildConfiguration }}
         deploy: ${{ parameters.deploy }}
+        provisionInfrastructure: ${{ parameters.provisionInfrastructure }}
         kubernetesServiceConnection: ${{ parameters.kubernetesServiceConnection }}
         azureServiceConnection: ${{ parameters.azureServiceConnection }}
 
@@ -224,6 +226,7 @@ stages:
         acrName: ${{ parameters.acrName }}
         buildConfiguration: ${{ parameters.buildConfiguration }}
         deploy: ${{ parameters.deploy }}
+        provisionInfrastructure: ${{ parameters.provisionInfrastructure }}
         kubernetesServiceConnection: ${{ parameters.kubernetesServiceConnection }}
         azureServiceConnection: ${{ parameters.azureServiceConnection }}
 
@@ -240,5 +243,6 @@ stages:
         acrName: ${{ parameters.acrName }}
         buildConfiguration: ${{ parameters.buildConfiguration }}
         deploy: ${{ parameters.deploy }}
+        provisionInfrastructure: ${{ parameters.provisionInfrastructure }}
         kubernetesServiceConnection: ${{ parameters.kubernetesServiceConnection }}
         azureServiceConnection: ${{ parameters.azureServiceConnection }}

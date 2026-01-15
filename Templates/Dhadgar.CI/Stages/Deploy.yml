@@ -7,6 +7,14 @@
 #   - swa: Azure Static Web Apps deployment (Scope dev only, ShoppingCart all environments)
 #   - cli: CLI binary distribution to GitHub Releases / storage (localdev only, uses artifacts from Package stage)
 #   - agent: Agent binary distribution (localdev only, uses artifacts from Package stage)
+#
+# Dependencies:
+#   - With infrastructure provisioning: Depends on Infrastructure_{environment} stage
+#   - Without infrastructure provisioning: Depends on Publish stage
+#
+# Environment approvals:
+#   - meridian-localdev: No approval required
+#   - meridian-dev/staging/prod: Requires approval (configured in Azure DevOps UI)
 
 parameters:
   services: []
@@ -20,6 +28,7 @@ parameters:
   acrName: 'meridianconsoleacr'
   deploy: true
   buildConfiguration: 'Release'
+  provisionInfrastructure: false
   # Compose deployment settings
   composeProjectPath: 'deploy/compose'
   composeFile: 'docker-compose.services.acr.yml'
@@ -31,7 +40,10 @@ parameters:
 stages:
   - stage: Deploy_${{ replace(parameters.environment, '-', '_') }}
     displayName: 'Deploy (${{ parameters.environment }})'
-    dependsOn: Publish  # Depends on Publish stage for container images
+    ${{ if eq(parameters.provisionInfrastructure, true) }}:
+      dependsOn: Infrastructure_${{ parameters.environment }}
+    ${{ else }}:
+      dependsOn: Publish
     condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'), eq('${{ parameters.deploy }}', 'true'))
     variables:
       Environment: ${{ parameters.environment }}

@@ -14,7 +14,7 @@ parameters:
 stages:
   - stage: Infrastructure_${{ parameters.environment }}
     displayName: 'Infrastructure (${{ parameters.environment }})'
-    dependsOn: Build
+    dependsOn: Publish
     condition: and(succeeded(), eq(variables['Build.SourceBranch'], 'refs/heads/main'), eq('${{ parameters.provisionAzure }}', 'true'))
     jobs:
       # Azure Resource Provisioning
