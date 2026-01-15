@@ -130,13 +130,15 @@ stages:
                 $nvdKey = '${{ parameters.nvdApiKey }}'
                 $nvdArg = if ($nvdKey) { "--nvdApiKey", $nvdKey } else { @() }
 
-                # Create data directory for OWASP DB
-                $dataDir = "/azp/_work/dependency-check-data"
+                # Create data directory for OWASP DB within agent work directory
+                # Use Agent.TempDirectory which is writable by the agent user
+                $dataDir = "$(Agent.TempDirectory)/dependency-check-data"
                 if (-not (Test-Path $dataDir)) {
                   New-Item -ItemType Directory -Path $dataDir -Force | Out-Null
                 }
 
                 Write-Host "Scanning: ${{ parameters.scaTarget }}"
+                Write-Host "Data directory: $dataDir"
                 dependency-check `
                   --project "SecurityScan" `
                   --scan "${{ parameters.scaTarget }}" `

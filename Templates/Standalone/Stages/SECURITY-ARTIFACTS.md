@@ -223,6 +223,30 @@ If you manually edited/deleted a comment, the script will create a new one. Dele
 - `1` = Findings reported (SARIF should have content)
 - `2` = Scanner error (check stderr output)
 
+### "OWASP Dependency-Check slow on first run"
+
+**Cause**: The NVD database needs to be downloaded on first run (~200MB).
+
+**Expected behavior**:
+- First run: 5-15 minutes (database download)
+- Subsequent runs: 2-5 minutes (incremental updates)
+
+**Note**: The database is stored in `$(Agent.TempDirectory)/dependency-check-data` which is ephemeral. If you want persistence across pipeline runs:
+
+1. Create a persistent volume for the agent:
+   ```yaml
+   # In agent-swarm.yml
+   volumes:
+     - dependency-check-data:/azp/_work/_tool/dependency-check-data
+   ```
+
+2. Update Security.yml to use the persistent path:
+   ```yaml
+   $dataDir = "/azp/_work/_tool/dependency-check-data"
+   ```
+
+This trades disk space (~500MB) for faster subsequent scans.
+
 ## Related Documentation
 
 - [Security Scanner Setup](SECURITY-SCANNER-SETUP.md)
