@@ -147,16 +147,8 @@ stages:
       provisionDns: ${{ parameters.provisionDns }}
       tenantId: ${{ parameters.tenantId }}
 
-# Release Stage (SWA deployments)
-- template: ../Stages/Release.yml
-  parameters:
-    services: ${{ parameters.services }}
-    servicesCsvNormalized: ${{ parameters.servicesCsvNormalized }}
-    buildConfiguration: ${{ parameters.buildConfiguration }}
-    deploy: ${{ parameters.deploy }}
-
-# Deploy Stage (Compose, CLI, Agent deployments)
-# Downloads artifacts from Package stage and deploys to target environments
+# Deploy Stage (Compose, CLI, Agent, SWA deployments)
+# Downloads artifacts from Publish stage and deploys to target environments
 - ${{ if eq(parameters.deploy, true) }}:
   - template: ../Stages/Deploy.yml
     parameters:

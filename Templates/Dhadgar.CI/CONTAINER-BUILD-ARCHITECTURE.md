@@ -398,42 +398,49 @@ Single job that:
 
 **Why this works**: Docker Compose is designed for multi-service orchestration. Using 13 separate jobs was fighting against the tool's purpose.
 
-## Release Stage Optimization
+## Deploy Stage Consolidation
 
-### Before: Per-Service SWA Deployment (2 jobs)
+### Before: Separate Release and Deploy Stages
 
-Each frontend app had its own deploy job:
-1. Dhadgar.Scope → DeploySwa_Dhadgar_Scope
-2. Dhadgar.ShoppingCart → DeploySwa_Dhadgar_ShoppingCart
-
-**Problems**:
+**Release Stage** (SWA deployments):
+- 2 separate jobs for frontend apps
+- Depended on Build stage
 - Redundant checkout and setup per job
-- More agent slots consumed
-- Harder to coordinate multi-site deployments
 
-### After: Unified SWA Deployment (1 job)
+**Deploy Stage** (Compose/CLI/Agent):
+- 13 separate compose jobs (one per microservice)
+- Depended on Package stage
+- Massive agent pool pressure
 
-**Template**: `Templates/Dhadgar.CI/Stages/Release.yml`
+**Total**: 15+ deployment jobs across 2 stages
 
-Single job deploys all SWA sites:
-1. Checkout once
-2. Deploy Scope (dev only)
-3. Deploy ShoppingCart (all environments)
-4. Ready for Panel (TBD)
+### After: Unified Deploy Stage
+
+**Template**: `Templates/Dhadgar.CI/Stages/Deploy.yml`
+
+Single Deploy stage with:
+1. **DeployComposeStack** - Entire microservices stack (1 job)
+2. **DeployScope** - SWA Scope site (dev only, 1 job)
+3. **DeployShoppingCart** - SWA ShoppingCart site (all environments, 1 job)
+4. **CLI Distribution** - Deploy CLI tools (per-CLI jobs)
+5. **Agent Distribution** - Deploy agents (per-agent jobs)
+
+**Total**: 2-3 deployment jobs (down from 15+)
 
 **Benefits**:
-- ✅ **Single checkout**: Faster, less redundant work
-- ✅ **Less agent pressure**: 1 job instead of 2 (will be 3 with Panel)
-- ✅ **Coordinated deployment**: All frontend apps deploy together
-- ✅ **Environment-aware**: Scope only deploys to dev
+- ✅ **Unified stage**: All deployments happen together
+- ✅ **Depends on Publish**: Uses pushed container images from ACR
+- ✅ **89% fewer jobs**: From 15+ jobs to 2-3 jobs
+- ✅ **Less agent pressure**: Dramatically reduced agent pool usage
+- ✅ **Faster execution**: Less overhead, less waiting for agents
+- ✅ **Coordinated deployment**: All artifacts deploy in one stage
 
 ## Related Documentation
 
 - Main pipeline: `Templates/Dhadgar.CI/Pipeline/Pipeline.yml`
 - Build stage: `Templates/Dhadgar.CI/Stages/Build.yml`
 - Package stage: `Templates/Dhadgar.CI/Stages/Package.yml`
-- Deploy stage: `Templates/Dhadgar.CI/Stages/Deploy.yml`
-- Release stage: `Templates/Dhadgar.CI/Stages/Release.yml`
+- Deploy stage: `Templates/Dhadgar.CI/Stages/Deploy.yml` (includes SWA, Compose, CLI, Agent deployments)
 - BuildContainer job: `Templates/Dhadgar.CI/Jobs/BuildContainer.yml`
 - PublishContainer job: `Templates/Dhadgar.CI/Jobs/PublishContainer.yml`
 - DeployComposeStack job: `Templates/Dhadgar.CI/Jobs/DeployComposeStack.yml`

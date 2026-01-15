@@ -2,8 +2,8 @@
 # Deploys Meridian Console services to various targets
 #
 # Deployment types:
-#   - compose: Docker Compose deployment to self-hosted environment (uses images from Package stage)
-#   - swa: Azure Static Web Apps (handled in Release.yml)
+#   - compose: Docker Compose deployment to self-hosted environment (uses images from Publish stage)
+#   - swa: Azure Static Web Apps deployment (Scope dev only, ShoppingCart all environments)
 #   - cli: CLI binary distribution to GitHub Releases / storage (uses artifacts from Package stage)
 #   - agent: Agent binary distribution (uses artifacts from Package stage)
 
@@ -17,23 +17,25 @@ parameters:
   acrServiceConnection: 'meridianconsoleacr'
   acrLoginServer: 'meridianconsoleacr-etdvg4cthscffqdf.azurecr.io'
   deploy: true
+  buildConfiguration: 'Release'
   # Compose deployment settings
   composeProjectPath: 'deploy/compose'
   composeFile: 'docker-compose.services.acr.yml'
   infraComposeFile: 'docker-compose.dev.yml'
 
 stages:
-  - stage: LocalDev
-    displayName: 'Local Dev'
+  - stage: Deploy_${{ replace(parameters.environment, '-', '_') }}
+    displayName: 'Deploy (${{ parameters.environment }})'
     dependsOn:
-      - Package  # Depends on Package stage for container images and binary artifacts
+      - Publish  # Depends on Publish stage for container images
       - ${{ if eq(parameters.environment, 'staging') }}:
         - Deploy_dev
       - ${{ if eq(parameters.environment, 'prod') }}:
         - Deploy_staging
-    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'), eq('${{ parameters.deploy }}', 'true'), eq('${{ parameters.environment }}', 'localdev'))
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'), eq('${{ parameters.deploy }}', 'true'))
     variables:
       Environment: ${{ parameters.environment }}
+      BuildConfiguration: ${{ parameters.buildConfiguration }}
     jobs:
       # Docker Compose Stack Deployment (single job deploys entire stack)
       - template: ../Jobs/DeployComposeStack.yml
@@ -77,3 +79,41 @@ stages:
                 publishToGitHub: ${{ coalesce(svc.agent.publishToGitHub, true) }}
               ${{ if not(svc.agent) }}:
                 publishToGitHub: true
+
+      # Static Web Apps - Scope (dev only)
+      - job: DeployScope
+        displayName: 'Deploy SWA: Scope'
+        condition: eq('${{ parameters.environment }}', 'dev')
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+        - checkout: self
+        - template: ../Steps/DeploySwa.yml
+          parameters:
+            apiToken: $(Dhadgar_Swa_ApiToken)
+            appLocation: .
+            outputLocation: _swa_publish/wwwroot
+            appBuildCommand: dotnet publish src/Dhadgar.Scope/Dhadgar.Scope.csproj -c $(BuildConfiguration) -o _swa_publish
+
+      # Static Web Apps - ShoppingCart (all environments)
+      - job: DeployShoppingCart
+        displayName: 'Deploy SWA: ShoppingCart'
+        pool:
+          vmImage: 'ubuntu-latest'
+        steps:
+        - checkout: self
+        - template: ../Steps/DeploySwa.yml
+          parameters:
+            apiToken: $(Dhadgar_ShoppingCart_Swa_ApiToken)
+            appLocation: .
+            outputLocation: _swa_publish/wwwroot
+            appBuildCommand: dotnet publish src/Dhadgar.ShoppingCart/Dhadgar.ShoppingCart.csproj -c $(BuildConfiguration) -o _swa_publish
+
+      # TODO: Panel website deployment (TBD - Astro? SWA? Azure App Service?)
+      # - job: DeployPanel
+      #   displayName: 'Deploy: Panel'
+      #   pool:
+      #     vmImage: 'ubuntu-latest'
+      #   steps:
+      #   - bash: echo "Panel deployment not yet implemented"
+      #     displayName: 'Deploy Panel (TBD)'
