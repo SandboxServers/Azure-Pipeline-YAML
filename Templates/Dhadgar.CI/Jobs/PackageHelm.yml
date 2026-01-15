@@ -18,6 +18,7 @@ jobs:
     steps:
       - checkout: self
         fetchDepth: 0
+      - download: none
 
       - template: ../../Standalone/Steps/Helm/PublishChartToAcr.yml
         parameters:

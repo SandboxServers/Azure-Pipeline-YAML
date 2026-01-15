@@ -1,0 +1,78 @@
+# Build Solution Job
+# Builds the entire solution once with all projects
+# Publishes individual project artifacts in parallel after build completes
+#
+# Benefits:
+# - Single NuGet restore for all shared packages
+# - MSBuild intelligently builds projects in dependency order
+# - Massive bandwidth savings (no redundant package downloads per project)
+# - Faster build times (shared build cache)
+
+parameters:
+  services: []
+  servicesCsvNormalized: ',,'
+  buildConfiguration: 'Release'
+  dotnetSdkVersion: '10.0.x'
+  includePreview: true
+  solutionPath: 'Dhadgar.sln'
+
+jobs:
+- job: BuildSolution
+  displayName: 'Build Solution'
+  workspace:
+    clean: all
+  variables:
+    NUGET_PACKAGES: $(Pipeline.Workspace)/.nuget/packages
+    BuildOutputDir: $(Build.SourcesDirectory)/artifacts/publish
+  steps:
+  - checkout: self
+
+  - template: ../../Standalone/Steps/DotNet/UseDotNet.yml
+    parameters:
+      dotnetSdkVersion: ${{ parameters.dotnetSdkVersion }}
+      includePreview: ${{ parameters.includePreview }}
+
+  - template: ../../Standalone/Steps/DotNet/CacheNuGet.yml
+    parameters:
+      keySuffix: ${{ parameters.solutionPath }}
+
+  - template: ../../Standalone/Steps/DotNet/Restore.yml
+    parameters:
+      projectPath: ${{ parameters.solutionPath }}
+
+  # Build entire solution first (fast, establishes build graph)
+  - task: DotNetCoreCLI@2
+    displayName: 'Build solution'
+    inputs:
+      command: 'build'
+      projects: ${{ parameters.solutionPath }}
+      arguments: >
+        -c ${{ parameters.buildConfiguration }}
+        /p:SkipGlobalToolInstall=true
+
+  # Publish each deployable project using --no-build (uses already-built assemblies)
+  - ${{ each svc in parameters.services }}:
+    - ${{ if and(not(startsWith(svc.projectPath, 'tests/')), not(startsWith(svc.projectPath, 'src/Shared/')), or(eq(parameters.servicesCsvNormalized, ',,'), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(svc.id))), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(replace(svc.id, 'Dhadgar.', '')))))) }}:
+      - task: DotNetCoreCLI@2
+        displayName: 'Publish: ${{ svc.id }}'
+        inputs:
+          command: 'publish'
+          publishWebProjects: false
+          projects: ${{ svc.projectPath }}
+          arguments: >
+            -c ${{ parameters.buildConfiguration }}
+            --no-build
+            --no-restore
+            -o "$(BuildOutputDir)/${{ replace(svc.id, '.', '_') }}"
+            /p:SatelliteResourceLanguages=en-US
+            /p:SkipGlobalToolInstall=true
+
+  # Publish artifacts for each service in parallel
+  - ${{ each svc in parameters.services }}:
+    - ${{ if and(not(startsWith(svc.projectPath, 'tests/')), not(startsWith(svc.projectPath, 'src/Shared/')), or(eq(parameters.servicesCsvNormalized, ',,'), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(svc.id))), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(replace(svc.id, 'Dhadgar.', '')))))) }}:
+      - task: PublishPipelineArtifact@1
+        displayName: 'Publish: ${{ svc.id }}'
+        inputs:
+          targetPath: '$(BuildOutputDir)/${{ replace(svc.id, '.', '_') }}'
+          artifactName: 'src-${{ replace(svc.id, '.', '_') }}'
+          publishLocation: 'pipeline'

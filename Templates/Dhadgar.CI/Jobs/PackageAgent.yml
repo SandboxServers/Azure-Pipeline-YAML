@@ -23,6 +23,7 @@ jobs:
     steps:
       - checkout: self
         fetchDepth: 1
+      - download: none
 
       - task: UseDotNet@2
         displayName: 'Use .NET SDK'

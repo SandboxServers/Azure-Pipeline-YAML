@@ -32,13 +32,15 @@ jobs:
     steps:
       - checkout: self
         fetchDepth: 1
+      - download: none
 
-      # Download pre-built artifact from Build stage
+      # Download only the specific artifact needed for this container build
       - task: DownloadPipelineArtifact@2
         displayName: 'Download build artifact'
         inputs:
-          artifact: $(artifactName)
-          path: '$(Pipeline.Workspace)/artifacts/$(artifactName)'
+          buildType: 'current'
+          artifactName: $(artifactName)
+          targetPath: '$(Pipeline.Workspace)/artifacts/$(artifactName)'
 
       # Copy artifacts into build context so Docker can access them
       - pwsh: |
