@@ -211,10 +211,10 @@ stages:
 
               - task: PublishPipelineArtifact@1
                 displayName: 'Publish Trivy results'
+                condition: always()
                 inputs:
                   targetPath: '${{ parameters.artifactStagingDirectory }}'
                   artifactName: 'security-container-${{ replace(artifact.name, '-', '_') }}'
-                condition: always()
 
       # Job 4: IaC Scanning (Checkov)
       - ${{ if eq(parameters.runIacScan, true) }}:
