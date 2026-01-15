@@ -36,21 +36,21 @@ stages:
       steps:
       - checkout: self
 
-      - template: ../Standalone/Steps/DotNet/UseDotNet.yml
+      - template: ../../Standalone/Steps/DotNet/UseDotNet.yml
         parameters:
           dotnetSdkVersion: ${{ parameters.dotnetSdkVersion }}
           includePreview: ${{ parameters.includePreview }}
 
-      - template: ../Standalone/Steps/DotNet/CacheNuGet.yml
+      - template: ../../Standalone/Steps/DotNet/CacheNuGet.yml
         parameters:
           keySuffix: ${{ coalesce(parameters.testTargetPath, 'all-tests') }}
 
       - ${{ if ne(parameters.testTargetPath, '') }}:
-        - template: ../Standalone/Steps/DotNet/Restore.yml
+        - template: ../../Standalone/Steps/DotNet/Restore.yml
           parameters:
             projectPath: ${{ parameters.testTargetPath }}
 
-      - template: ../Standalone/Steps/DotNet/TestAndCoverage.yml
+      - template: ../../Standalone/Steps/DotNet/TestAndCoverage.yml
         parameters:
           testProjectPath: ${{ parameters.testTargetPath }}
           buildConfiguration: ${{ parameters.buildConfiguration }}
