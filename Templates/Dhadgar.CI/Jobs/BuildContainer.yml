@@ -1,5 +1,6 @@
 # Build Container Job
-# Builds Docker image for a service and pushes to ACR
+# Builds Docker image for a service using pre-built artifacts from Build stage
+# Saves image as tarball artifact for PublishContainer job
 #
 # Depends on the Build job completing successfully for this service
 
@@ -13,7 +14,7 @@ parameters:
 
 jobs:
   - job: BuildContainer_${{ replace(parameters.service.id, '.', '_') }}
-    displayName: 'Container: ${{ parameters.service.id }}'
+    displayName: 'Build Container: ${{ parameters.service.id }}'
     condition: succeeded()
     pool:
       name: 'Sandbox Servers Agents'
@@ -21,36 +22,67 @@ jobs:
       serviceName: ${{ replace(lower(parameters.service.id), 'dhadgar.', '') }}
       imageName: dhadgar/${{ replace(lower(parameters.service.id), 'dhadgar.', '') }}
       dockerfilePath: src/${{ parameters.service.id }}/Dockerfile
+      artifactName: src-${{ replace(parameters.service.id, '.', '_') }}
     steps:
       - checkout: self
         fetchDepth: 1
 
+      # Download pre-built artifact from Build stage
+      - task: DownloadPipelineArtifact@2
+        displayName: 'Download build artifact'
+        inputs:
+          artifact: $(artifactName)
+          path: '$(Pipeline.Workspace)/artifacts/$(artifactName)'
+
       # Determine Dockerfile path based on project structure
+      # Prefers Dockerfile.pipeline (artifact-based) over Dockerfile (local build)
       - pwsh: |
           $projectPath = '${{ parameters.service.projectPath }}'
           $projectDir = Split-Path $projectPath -Parent
+          $serviceName = '${{ replace(parameters.service.id, 'Dhadgar.', '') }}'
 
-          # Check for Dockerfile in project directory
-          $dockerfilePath = Join-Path $projectDir "Dockerfile"
-          if (-not (Test-Path $dockerfilePath)) {
-            # Try common patterns
-            $serviceName = '${{ replace(parameters.service.id, 'Dhadgar.', '') }}'
-            $alternates = @(
-              "src/Dhadgar.$serviceName/Dockerfile",
-              "src/$serviceName/Dockerfile",
-              "$projectDir/Dockerfile"
-            )
-            foreach ($alt in $alternates) {
-              if (Test-Path $alt) {
-                $dockerfilePath = $alt
-                break
-              }
+          # Priority order:
+          # 1. Dockerfile.pipeline (artifact-based, for CI/CD)
+          # 2. Dockerfile (local build, fallback)
+          $searchPaths = @(
+            (Join-Path $projectDir "Dockerfile.pipeline"),
+            (Join-Path $projectDir "Dockerfile"),
+            "src/Dhadgar.$serviceName/Dockerfile.pipeline",
+            "src/Dhadgar.$serviceName/Dockerfile",
+            "src/$serviceName/Dockerfile.pipeline",
+            "src/$serviceName/Dockerfile"
+          )
+
+          $dockerfilePath = $null
+          foreach ($path in $searchPaths) {
+            if (Test-Path $path) {
+              $dockerfilePath = $path
+              break
             }
+          }
+
+          if (-not $dockerfilePath) {
+            Write-Error "No Dockerfile found in: $($searchPaths -join ', ')"
+            exit 1
           }
 
           Write-Host "Using Dockerfile: $dockerfilePath"
           Write-Host "##vso[task.setvariable variable=DockerfilePath]$dockerfilePath"
         displayName: 'Resolve Dockerfile path'
+
+      # Check if Dockerfile exists and needs updating for artifact-based builds
+      - pwsh: |
+          $dockerfilePath = "$(DockerfilePath)"
+          $content = Get-Content $dockerfilePath -Raw
+
+          # Check if this Dockerfile is already artifact-aware
+          if ($content -match 'FROM.*AS\s+build' -and $content -notmatch 'COPY.*Pipeline\.Workspace') {
+            Write-Warning "Dockerfile at $dockerfilePath appears to rebuild from source."
+            Write-Warning "Consider updating it to use pre-built artifacts from Pipeline.Workspace."
+            Write-Host "##vso[task.logissue type=warning]Dockerfile rebuilds from source - consider using artifact-based build"
+          }
+        displayName: 'Validate Dockerfile'
+        continueOnError: true
 
       - task: Docker@2
         displayName: 'Build image'
@@ -60,24 +92,43 @@ jobs:
           command: 'build'
           Dockerfile: $(DockerfilePath)
           buildContext: '$(Build.SourcesDirectory)'
+          arguments: '--build-arg BUILD_ARTIFACT_PATH=$(Pipeline.Workspace)/artifacts/$(artifactName)'
           tags: |
             $(Build.BuildId)
             latest
 
-      - task: Docker@2
-        displayName: 'Push image'
+      # Save image as tarball for PublishContainer job
+      - pwsh: |
+          $imageName = "$(imageName)"
+          $buildId = "$(Build.BuildId)"
+          $imageTag = "${imageName}:${buildId}"
+          $tarballPath = "$(Build.ArtifactStagingDirectory)/container-$(serviceName)-$(Build.BuildId).tar"
+
+          Write-Host "Saving image $imageTag to $tarballPath"
+          docker save -o "$tarballPath" "$imageTag"
+
+          if ($LASTEXITCODE -ne 0) {
+            Write-Error "Failed to save Docker image"
+            exit 1
+          }
+
+          Write-Host "Image saved successfully"
+          Write-Host "##vso[task.setvariable variable=ImageTarball;isOutput=true]$tarballPath"
+        name: saveImage
+        displayName: 'Save image as tarball'
+
+      # Publish tarball as pipeline artifact
+      - task: PublishPipelineArtifact@1
+        displayName: 'Publish container image'
         inputs:
-          containerRegistry: ${{ parameters.acrServiceConnection }}
-          repository: $(imageName)
-          command: 'push'
-          tags: |
-            $(Build.BuildId)
-            latest
+          targetPath: '$(Build.ArtifactStagingDirectory)'
+          artifactName: 'container-${{ replace(parameters.service.id, '.', '_') }}'
+          publishLocation: 'pipeline'
 
-      # Record image details for deployment stage
+      # Output image reference for downstream jobs
       - pwsh: |
           $imageRef = "${{ parameters.acrLoginServer }}/$(imageName):$(Build.BuildId)"
-          Write-Host "Published image: $imageRef"
+          Write-Host "Built image: $imageRef"
           Write-Host "##vso[task.setvariable variable=ImageRef;isOutput=true]$imageRef"
         name: imageOutput
         displayName: 'Output image reference'
