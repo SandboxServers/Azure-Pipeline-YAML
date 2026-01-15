@@ -122,7 +122,7 @@ jobs:
         displayName: 'Publish container image'
         inputs:
           targetPath: '$(Build.ArtifactStagingDirectory)'
-          artifactName: 'container-${{ replace(parameters.service.id, '.', '_') }}'
+          artifactName: container-${{ replace(parameters.service.id, '.', '_') }}
           publishLocation: 'pipeline'
 
       # Output image reference for downstream jobs

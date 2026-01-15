@@ -1,8 +1,17 @@
+# Release Stage
+# Deploys frontend applications (Static Web Apps) to Azure
+#
+# SWA deployments:
+#   - Dhadgar.ShoppingCart: All environments (dev, staging, prod)
+#   - Dhadgar.Scope: Dev only (documentation site)
+#   - Dhadgar.Panel: TBD (future full-featured control plane UI)
+
 parameters:
   services: []
   servicesCsvNormalized: ',,'
   buildConfiguration: 'Release'
   deploy: true
+  environment: 'dev'
 
 stages:
 - stage: Release
@@ -10,24 +19,43 @@ stages:
   dependsOn: Build
   condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'), eq('${{ parameters.deploy }}', 'true'))
   jobs:
-  - job: Release_NoOp
-    displayName: 'Release: no targets'
-    condition: false
+  # Deploy all SWA sites in a single job
+  - job: DeploySwaApps
+    displayName: 'Deploy Static Web Apps'
+    pool:
+      vmImage: 'ubuntu-latest'
+    variables:
+      BuildConfiguration: ${{ parameters.buildConfiguration }}
     steps:
-    - script: echo "No release targets selected."
-  - ${{ each svc in parameters.services }}:
-    - ${{ if and(eq(svc.deploy, 'swa'), or(eq(parameters.servicesCsvNormalized, ',,'), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(svc.id))), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(replace(svc.id, 'Dhadgar.', '')))))) }}:
-      - job: DeploySwa_${{ replace(svc.id, '.', '_') }}
-        displayName: 'Deploy (SWA): ${{ svc.id }}'
-        pool:
-          vmImage: 'ubuntu-latest'
-        variables:
-          BuildConfiguration: ${{ parameters.buildConfiguration }}
-        steps:
-        - checkout: self
-        - template: ../Steps/DeploySwa.yml
-          parameters:
-            apiToken: ${{ format('$(%s)', svc.swa.apiTokenVar) }}
-            appLocation: ${{ svc.swa.appLocation }}
-            outputLocation: ${{ svc.swa.outputLocation }}
-            appBuildCommand: ${{ svc.swa.appBuildCommand }}
+    - checkout: self
+
+    # Deploy each SWA service
+    ${{ each svc in parameters.services }}:
+      ${{ if and(eq(svc.deploy, 'swa'), or(eq(parameters.servicesCsvNormalized, ',,'), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(svc.id))), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(replace(svc.id, 'Dhadgar.', '')))))) }}:
+        # Scope: dev only
+        ${{ if and(eq(svc.id, 'Dhadgar.Scope'), eq(parameters.environment, 'dev')) }}:
+          - bash: echo "Deploying Scope (dev only)..."
+            displayName: 'Deploy Scope (dev only)'
+          - template: ../Steps/DeploySwa.yml
+            parameters:
+              apiToken: ${{ format('$(%s)', svc.swa.apiTokenVar) }}
+              appLocation: ${{ svc.swa.appLocation }}
+              outputLocation: ${{ svc.swa.outputLocation }}
+              appBuildCommand: ${{ svc.swa.appBuildCommand }}
+
+        # ShoppingCart: all environments
+        ${{ if eq(svc.id, 'Dhadgar.ShoppingCart') }}:
+          - bash: echo "Deploying ShoppingCart (${{ parameters.environment }})..."
+            displayName: 'Deploy ShoppingCart (${{ parameters.environment }})'
+          - template: ../Steps/DeploySwa.yml
+            parameters:
+              apiToken: ${{ format('$(%s)', svc.swa.apiTokenVar) }}
+              appLocation: ${{ svc.swa.appLocation }}
+              outputLocation: ${{ svc.swa.outputLocation }}
+              ${{ if svc.swa.apiLocation }}:
+                apiLocation: ${{ svc.swa.apiLocation }}
+              appBuildCommand: ${{ svc.swa.appBuildCommand }}
+
+    # TODO: Panel website deployment (TBD - Astro? SWA? Azure App Service?)
+    # - bash: echo "Panel deployment not yet implemented"
+    #   displayName: 'Deploy Panel (TBD)'

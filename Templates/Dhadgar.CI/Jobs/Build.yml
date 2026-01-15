@@ -73,6 +73,7 @@ jobs:
         -c ${{ parameters.buildConfiguration }}
         -o "$(PublishDir)"
         /p:SatelliteResourceLanguages=en-US
+        /p:SkipGlobalToolInstall=true
 
   - task: PublishPipelineArtifact@1
     displayName: 'Publish release outputs'

@@ -7,4 +7,4 @@ steps:
   inputs:
     command: 'build'
     projects: ${{ parameters.projectPath }}
-    arguments: '-c ${{ parameters.buildConfiguration }} --no-restore'
+    arguments: '-c ${{ parameters.buildConfiguration }} --no-restore /p:SkipGlobalToolInstall=true'

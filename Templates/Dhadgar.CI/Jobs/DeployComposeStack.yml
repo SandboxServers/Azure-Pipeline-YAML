@@ -1,0 +1,114 @@
+# Deploy Docker Compose Stack Job
+# Deploys the entire microservices stack via Docker Compose on self-hosted agents
+#
+# This replaces the per-service DeployCompose jobs with a single stack deployment
+
+parameters:
+  environment: 'dev'
+  agentDemand: ''
+  acrServiceConnection: ''
+  acrLoginServer: ''
+  composeAssetArtifactName: 'compose-assets'
+  composeAssetPath: 'compose'
+  composeProjectPath: 'deploy/compose'
+  composeFile: 'docker-compose.services.acr.yml'  # Use ACR images
+  infraComposeFile: 'docker-compose.dev.yml'
+
+jobs:
+  - deployment: DeployComposeStack
+    displayName: 'Deploy (Compose): Full Stack'
+    environment: 'meridian-${{ parameters.environment }}'
+    pool:
+      name: 'Sandbox Servers Agents'
+      ${{ if ne(parameters.agentDemand, '') }}:
+        demands:
+          - ${{ parameters.agentDemand }}
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            - checkout: none
+            - download: none
+
+            - task: DownloadPipelineArtifact@2
+              displayName: 'Download compose assets'
+              inputs:
+                buildType: 'current'
+                artifactName: ${{ parameters.composeAssetArtifactName }}
+                targetPath: '$(Pipeline.Workspace)/${{ parameters.composeAssetPath }}'
+
+            # Login to ACR to pull images
+            - task: Docker@2
+              displayName: 'Login to ACR'
+              inputs:
+                containerRegistry: ${{ parameters.acrServiceConnection }}
+                command: 'login'
+
+            # Ensure infrastructure is running
+            - task: Bash@3
+              displayName: 'Start infrastructure'
+              inputs:
+                targetType: 'inline'
+                workingDirectory: '$(Pipeline.Workspace)/${{ parameters.composeAssetPath }}'
+                script: |
+                  set -euo pipefail
+
+                  echo "Starting infrastructure services..."
+                  docker compose -f ${{ parameters.infraComposeFile }} up -d
+
+                  # Wait for postgres to be healthy
+                  echo "Waiting for PostgreSQL to be healthy..."
+                  timeout 120 bash -c 'until docker compose -f ${{ parameters.infraComposeFile }} ps postgres | grep -q healthy; do sleep 2; done'
+
+                  echo "Infrastructure is ready."
+
+            # Deploy entire microservices stack
+            - task: Bash@3
+              displayName: 'Deploy microservices stack'
+              inputs:
+                targetType: 'inline'
+                workingDirectory: '$(Pipeline.Workspace)/${{ parameters.composeAssetPath }}'
+                script: |
+                  set -euo pipefail
+
+                  COMPOSE_FILE="${{ parameters.composeFile }}"
+                  ACR_SERVER="${{ parameters.acrLoginServer }}"
+
+                  # Export environment variables for compose
+                  export ACR_LOGIN_SERVER="${ACR_SERVER}"
+                  export IMAGE_TAG="latest"
+
+                  echo "Pulling latest images from ACR..."
+                  docker compose -f "$COMPOSE_FILE" pull
+
+                  echo "Deploying microservices stack..."
+                  docker compose -f "$COMPOSE_FILE" up -d
+
+                  echo "Waiting for services to start..."
+                  sleep 10
+
+                  echo "Stack status:"
+                  docker compose -f "$COMPOSE_FILE" ps
+
+            # Verify critical services
+            - task: Bash@3
+              displayName: 'Verify deployment'
+              inputs:
+                targetType: 'inline'
+                script: |
+                  set -euo pipefail
+
+                  # Check gateway health (entry point)
+                  echo "Checking gateway health..."
+                  for i in {1..10}; do
+                    if curl -sf "http://localhost:5000/healthz" > /dev/null 2>&1; then
+                      echo "Gateway is healthy!"
+                      exit 0
+                    fi
+                    echo "Attempt $i: waiting for gateway..."
+                    sleep 3
+                  done
+
+                  echo "Warning: Gateway health check did not pass, but services may still be starting."
+                  echo "Check logs with: docker compose -f ${{ parameters.composeFile }} logs"
+                  exit 0

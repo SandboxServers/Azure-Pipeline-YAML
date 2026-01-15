@@ -6,14 +6,17 @@ This document describes the container build and publish pipeline architecture fo
 
 The container pipeline is designed with separation of concerns:
 1. **Build Stage** - Compiles code, runs tests, publishes artifacts
-2. **Package Stage** - Builds Docker images using pre-built artifacts
-3. **Publish Stage** - Pushes images to ACR (non-PR builds only)
+2. **Package Stage** - Builds Docker images using pre-built artifacts (parallel, one job per service)
+3. **Publish Stage** - Pushes images to ACR (non-PR builds only, parallel)
+4. **Deploy Stage** - Deploys entire stack via Docker Compose (non-PR builds only, single job)
 
 This architecture provides:
 - **Faster builds**: No rebuilding code in Dockerfiles
+- **Parallel execution**: Container builds run in parallel for speed
 - **PR validation**: Containers are built and validated in PRs without publishing
 - **Artifact reuse**: Same binaries used for testing and containerization
 - **Cost efficiency**: Skip ACR pushes for PR builds
+- **Simple deployment**: Single compose stack deployment instead of per-service jobs
 
 ## Pipeline Flow
 
@@ -358,12 +361,81 @@ Package → Sign → Publish
 
 Add signing job in Publish stage before push jobs.
 
+## Deploy Stage Optimization
+
+### Before: Per-Service Deployment (13 jobs)
+
+Each microservice had its own deploy job that:
+1. Downloaded compose assets (redundant × 13)
+2. Logged into ACR (redundant × 13)
+3. Ensured infrastructure was running (redundant × 13)
+4. Pulled one image
+5. Deployed one service
+6. Verified one service
+
+**Problems**:
+- Wasteful: 13 jobs doing redundant setup work
+- Slow: Sequential or high agent pool pressure
+- Complex: Per-service health checks and port mapping
+- Fragile: One service failure could block others
+
+### After: Stack Deployment (1 job)
+
+**Template**: `Templates/Dhadgar.CI/Jobs/DeployComposeStack.yml`
+
+Single job that:
+1. Downloads compose assets (once)
+2. Logs into ACR (once)
+3. Starts infrastructure stack
+4. Deploys entire microservices stack with `docker compose up -d`
+5. Verifies gateway health (entry point)
+
+**Benefits**:
+- ✅ **Faster**: Single job, no redundant setup
+- ✅ **Simpler**: One compose command deploys everything
+- ✅ **Less agent pressure**: 1 job instead of 13
+- ✅ **Docker Compose handles orchestration**: Let compose manage service ordering and health
+
+**Why this works**: Docker Compose is designed for multi-service orchestration. Using 13 separate jobs was fighting against the tool's purpose.
+
+## Release Stage Optimization
+
+### Before: Per-Service SWA Deployment (2 jobs)
+
+Each frontend app had its own deploy job:
+1. Dhadgar.Scope → DeploySwa_Dhadgar_Scope
+2. Dhadgar.ShoppingCart → DeploySwa_Dhadgar_ShoppingCart
+
+**Problems**:
+- Redundant checkout and setup per job
+- More agent slots consumed
+- Harder to coordinate multi-site deployments
+
+### After: Unified SWA Deployment (1 job)
+
+**Template**: `Templates/Dhadgar.CI/Stages/Release.yml`
+
+Single job deploys all SWA sites:
+1. Checkout once
+2. Deploy Scope (dev only)
+3. Deploy ShoppingCart (all environments)
+4. Ready for Panel (TBD)
+
+**Benefits**:
+- ✅ **Single checkout**: Faster, less redundant work
+- ✅ **Less agent pressure**: 1 job instead of 2 (will be 3 with Panel)
+- ✅ **Coordinated deployment**: All frontend apps deploy together
+- ✅ **Environment-aware**: Scope only deploys to dev
+
 ## Related Documentation
 
 - Main pipeline: `Templates/Dhadgar.CI/Pipeline/Pipeline.yml`
 - Build stage: `Templates/Dhadgar.CI/Stages/Build.yml`
 - Package stage: `Templates/Dhadgar.CI/Stages/Package.yml`
+- Deploy stage: `Templates/Dhadgar.CI/Stages/Deploy.yml`
+- Release stage: `Templates/Dhadgar.CI/Stages/Release.yml`
 - BuildContainer job: `Templates/Dhadgar.CI/Jobs/BuildContainer.yml`
 - PublishContainer job: `Templates/Dhadgar.CI/Jobs/PublishContainer.yml`
+- DeployComposeStack job: `Templates/Dhadgar.CI/Jobs/DeployComposeStack.yml`
 - ACR details: `deploy/kubernetes/ACR-DETAILS.md`
 - Container build setup: `deploy/kubernetes/CONTAINER-BUILD-SETUP.md`
