@@ -14,14 +14,14 @@ parameters:
   imageTag: '$(Build.BuildId)'
 
 stages:
-  - stage: Deploy_${{ parameters.environment }}
-    displayName: 'Deploy (${{ parameters.environment }})'
+  - stage: DeployK8s_${{ parameters.environment }}
+    displayName: 'Deploy K8s (${{ parameters.environment }})'
     dependsOn:
       - Package
       - ${{ if eq(parameters.environment, 'qa') }}:
-        - Deploy_dev
+        - DeployK8s_dev
       - ${{ if eq(parameters.environment, 'prod') }}:
-        - Deploy_qa
+        - DeployK8s_qa
     condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
     variables:
       Namespace: ${{ coalesce(parameters.namespace, parameters.environment) }}
