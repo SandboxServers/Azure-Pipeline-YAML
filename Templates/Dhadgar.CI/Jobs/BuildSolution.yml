@@ -73,6 +73,6 @@ jobs:
       - task: PublishPipelineArtifact@1
         displayName: 'Publish: ${{ svc.id }}'
         inputs:
-          targetPath: ${{ format('$(Build.SourcesDirectory)/artifacts/publish/{0}', replace(svc.id, '.', '_')) }}
-          artifactName: 'src-${{ replace(svc.id, '.', '_') }}'
+          targetPath: $(Build.SourcesDirectory)/artifacts/publish/${{ replace(svc.id, '.', '_') }}
+          artifactName: src-${{ replace(svc.id, '.', '_') }}
           publishLocation: 'pipeline'
