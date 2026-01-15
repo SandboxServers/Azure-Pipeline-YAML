@@ -348,5 +348,5 @@ stages:
               - task: PublishPipelineArtifact@1
                 displayName: 'Publish SBOM'
                 inputs:
-                  targetPath: '${{ parameters.artifactStagingDirectory }}'
-                  artifactName: 'sbom-${{ replace(artifact.name, '-', '_') }}'
+                  targetPath: "${{ parameters.artifactStagingDirectory }}"
+                  artifactName: "sbom-${{ replace(artifact.name, '-', '_') }}"
