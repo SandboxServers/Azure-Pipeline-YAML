@@ -20,6 +20,12 @@ parameters:
 - name: collectCoverage
   type: boolean
   default: true
+- name: testInSingleJob
+  type: boolean
+  default: false
+- name: testTargetPath
+  type: string
+  default: ''
 - name: deploy
   type: boolean
   default: true
@@ -107,6 +113,8 @@ stages:
     includePreview: ${{ parameters.includePreview }}
     runTests: ${{ parameters.runTests }}
     collectCoverage: ${{ parameters.collectCoverage }}
+    testInSingleJob: ${{ parameters.testInSingleJob }}
+    testTargetPath: ${{ parameters.testTargetPath }}
 
 # Package Stage (Container builds + binary packaging)
 # Runs after Build, builds Docker images and packages CLI/Agent binaries
