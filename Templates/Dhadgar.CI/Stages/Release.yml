@@ -19,38 +19,44 @@ stages:
   dependsOn: Build
   condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'), eq('${{ parameters.deploy }}', 'true'))
   jobs:
-  # Deploy all SWA sites in a single job
-  - job: DeploySwaApps
-    displayName: 'Deploy Static Web Apps'
+  # Deploy Scope (dev only)
+  - job: DeployScope
+    displayName: 'Deploy SWA: Scope'
+    condition: eq('${{ parameters.environment }}', 'dev')
     pool:
       vmImage: 'ubuntu-latest'
     variables:
       BuildConfiguration: ${{ parameters.buildConfiguration }}
     steps:
     - checkout: self
+    - template: ../Steps/DeploySwa.yml
+      parameters:
+        apiToken: $(Dhadgar_Swa_ApiToken)
+        appLocation: .
+        outputLocation: _swa_publish/wwwroot
+        appBuildCommand: dotnet publish src/Dhadgar.Scope/Dhadgar.Scope.csproj -c $(BuildConfiguration) -o _swa_publish
 
-    # Deploy all SWA services
-    ${{ each svc in parameters.services }}:
-      ${{ if eq(svc.deploy, 'swa') }}:
-        # Scope: dev only
-        ${{ if eq(svc.id, 'Dhadgar.Scope') }}:
-          ${{ if eq(parameters.environment, 'dev') }}:
-            - template: ../Steps/DeploySwa.yml
-              parameters:
-                apiToken: $(Dhadgar_Swa_ApiToken)
-                appLocation: .
-                outputLocation: _swa_publish/wwwroot
-                appBuildCommand: dotnet publish src/Dhadgar.Scope/Dhadgar.Scope.csproj -c $(BuildConfiguration) -o _swa_publish
+  # Deploy ShoppingCart (all environments)
+  - job: DeployShoppingCart
+    displayName: 'Deploy SWA: ShoppingCart'
+    pool:
+      vmImage: 'ubuntu-latest'
+    variables:
+      BuildConfiguration: ${{ parameters.buildConfiguration }}
+    steps:
+    - checkout: self
+    - template: ../Steps/DeploySwa.yml
+      parameters:
+        apiToken: $(Dhadgar_ShoppingCart_Swa_ApiToken)
+        appLocation: .
+        outputLocation: _swa_publish/wwwroot
+        appBuildCommand: dotnet publish src/Dhadgar.ShoppingCart/Dhadgar.ShoppingCart.csproj -c $(BuildConfiguration) -o _swa_publish
 
-        # ShoppingCart: all environments
-        ${{ if eq(svc.id, 'Dhadgar.ShoppingCart') }}:
-          - template: ../Steps/DeploySwa.yml
-            parameters:
-              apiToken: $(Dhadgar_ShoppingCart_Swa_ApiToken)
-              appLocation: .
-              outputLocation: _swa_publish/wwwroot
-              appBuildCommand: dotnet publish src/Dhadgar.ShoppingCart/Dhadgar.ShoppingCart.csproj -c $(BuildConfiguration) -o _swa_publish
-
-    # TODO: Panel website deployment (TBD - Astro? SWA? Azure App Service?)
-    # - bash: echo "Panel deployment not yet implemented"
-    #   displayName: 'Deploy Panel (TBD)'
+  # TODO: Panel website deployment (TBD - Astro? SWA? Azure App Service?)
+  # - job: DeployPanel
+  #   displayName: 'Deploy: Panel'
+  #   pool:
+  #     vmImage: 'ubuntu-latest'
+  #   steps:
+  #   - bash: echo "Panel deployment not yet implemented"
+  #     displayName: 'Deploy Panel (TBD)'
