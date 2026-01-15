@@ -65,8 +65,6 @@ jobs:
             --no-restore
             -o "$(BuildOutputDir)/${{ replace(svc.id, '.', '_') }}"
             /p:SatelliteResourceLanguages=en-US
-            /p:PublishTrimmed=true
-            /p:TrimMode=link
             /p:SkipGlobalToolInstall=true
 
       - task: PublishPipelineArtifact@1
