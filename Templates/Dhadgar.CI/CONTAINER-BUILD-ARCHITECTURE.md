@@ -400,7 +400,7 @@ Single job that:
 
 ## Deploy Stage Consolidation
 
-### Before: Separate Release and Deploy Stages
+### Before: Separate Release, Deploy, and DeployKubernetes Stages
 
 **Release Stage** (SWA deployments):
 - 2 separate jobs for frontend apps
@@ -412,28 +412,41 @@ Single job that:
 - Depended on Package stage
 - Massive agent pool pressure
 
-**Total**: 15+ deployment jobs across 2 stages
+**DeployKubernetes Stage** (Helm deployments):
+- 3 separate stages (dev, staging, prod)
+- Each with its own Kubernetes deployment job
+- Depended on Package stage
+
+**Total**: 15+ deployment jobs across 3 separate stage types
 
 ### After: Unified Deploy Stage
 
 **Template**: `Templates/Dhadgar.CI/Stages/Deploy.yml`
 
-Single Deploy stage with:
-1. **DeployComposeStack** - Entire microservices stack (1 job)
-2. **DeployScope** - SWA Scope site (dev only, 1 job)
-3. **DeployShoppingCart** - SWA ShoppingCart site (all environments, 1 job)
-4. **CLI Distribution** - Deploy CLI tools (per-CLI jobs)
-5. **Agent Distribution** - Deploy agents (per-agent jobs)
+Single Deploy stage per environment with environment-appropriate jobs:
 
-**Total**: 2-3 deployment jobs (down from 15+)
+**localdev environment**:
+1. **DeployComposeStack** - Entire microservices stack (1 job)
+2. **CLI Distribution** - Deploy CLI tools (per-CLI jobs)
+3. **Agent Distribution** - Deploy agents (per-agent jobs)
+4. **DeployShoppingCart** - SWA ShoppingCart site (1 job)
+
+**dev/staging/prod environments**:
+1. **DeployKubernetes** - Helm deployment to K8s cluster (1 job)
+2. **DeployScope** - SWA Scope site (dev only, 1 job)
+3. **DeployShoppingCart** - SWA ShoppingCart site (1 job)
+
+**Total**: 2-4 deployment jobs per environment (down from 15+ across all environments)
 
 **Benefits**:
-- ✅ **Unified stage**: All deployments happen together
+- ✅ **Unified stage**: All deployments for an environment happen in one stage
 - ✅ **Depends on Publish**: Uses pushed container images from ACR
-- ✅ **89% fewer jobs**: From 15+ jobs to 2-3 jobs
+- ✅ **Environment-aware**: localdev gets Compose, higher environments get Helm/K8s
+- ✅ **89% fewer jobs**: From 15+ jobs to 2-4 jobs per environment
 - ✅ **Less agent pressure**: Dramatically reduced agent pool usage
 - ✅ **Faster execution**: Less overhead, less waiting for agents
 - ✅ **Coordinated deployment**: All artifacts deploy in one stage
+- ✅ **Multi-environment support**: Can deploy to multiple environments in single pipeline run
 
 ## Related Documentation
 
