@@ -1,5 +1,6 @@
 # Standalone Security Scanning Stage Template
 # Free/open-source security tools for any .NET/Docker pipeline
+# Updated: 2026-01-15 - Fixed YAML syntax, static containerArtifacts array
 #
 # Usage Example:
 #   - template: Templates/Standalone/Stages/Security.yml
