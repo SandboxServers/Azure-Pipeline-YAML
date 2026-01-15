@@ -29,29 +29,27 @@ stages:
     steps:
     - checkout: self
 
-    # Deploy Scope (dev only)
+    # Deploy all SWA services
     ${{ each svc in parameters.services }}:
-      ${{ if and(eq(svc.deploy, 'swa'), eq(svc.id, 'Dhadgar.Scope'), eq(parameters.environment, 'dev')) }}:
-        ${{ if svc.swa }}:
-          - template: ../Steps/DeploySwa.yml
-            parameters:
-              apiToken: ${{ format('$({0})', svc.swa.apiTokenVar) }}
-              appLocation: ${{ svc.swa.appLocation }}
-              outputLocation: ${{ svc.swa.outputLocation }}
-              appBuildCommand: ${{ svc.swa.appBuildCommand }}
+      ${{ if eq(svc.deploy, 'swa') }}:
+        # Scope: dev only
+        ${{ if eq(svc.id, 'Dhadgar.Scope') }}:
+          ${{ if eq(parameters.environment, 'dev') }}:
+            - template: ../Steps/DeploySwa.yml
+              parameters:
+                apiToken: $(Dhadgar_Swa_ApiToken)
+                appLocation: .
+                outputLocation: _swa_publish/wwwroot
+                appBuildCommand: dotnet publish src/Dhadgar.Scope/Dhadgar.Scope.csproj -c $(BuildConfiguration) -o _swa_publish
 
-    # Deploy ShoppingCart (all environments)
-    ${{ each svc in parameters.services }}:
-      ${{ if and(eq(svc.deploy, 'swa'), eq(svc.id, 'Dhadgar.ShoppingCart')) }}:
-        ${{ if svc.swa }}:
+        # ShoppingCart: all environments
+        ${{ if eq(svc.id, 'Dhadgar.ShoppingCart') }}:
           - template: ../Steps/DeploySwa.yml
             parameters:
-              apiToken: ${{ format('$({0})', svc.swa.apiTokenVar) }}
-              appLocation: ${{ svc.swa.appLocation }}
-              outputLocation: ${{ svc.swa.outputLocation }}
-              ${{ if svc.swa.apiLocation }}:
-                apiLocation: ${{ svc.swa.apiLocation }}
-              appBuildCommand: ${{ svc.swa.appBuildCommand }}
+              apiToken: $(Dhadgar_ShoppingCart_Swa_ApiToken)
+              appLocation: .
+              outputLocation: _swa_publish/wwwroot
+              appBuildCommand: dotnet publish src/Dhadgar.ShoppingCart/Dhadgar.ShoppingCart.csproj -c $(BuildConfiguration) -o _swa_publish
 
     # TODO: Panel website deployment (TBD - Astro? SWA? Azure App Service?)
     # - bash: echo "Panel deployment not yet implemented"
