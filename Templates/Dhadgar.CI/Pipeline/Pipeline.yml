@@ -152,10 +152,32 @@ stages:
       pool:
         name: 'Sandbox Servers Agents'
       containerArtifacts:
-      ${{ each svc in parameters.services }}:
-        - ${{ if and(eq(svc.deploy, 'compose'), or(eq(parameters.servicesCsvNormalized, ',,'), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(svc.id))), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(replace(svc.id, 'Dhadgar.', '')))))) }}:
-          - name: container-${{ replace(svc.id, '.', '_') }}
-            imageName: dhadgar/${{ replace(lower(svc.id), 'dhadgar.', '') }}
+        - name: container-Dhadgar_Billing
+          imageName: dhadgar/billing
+        - name: container-Dhadgar_Console
+          imageName: dhadgar/console
+        - name: container-Dhadgar_Discord
+          imageName: dhadgar/discord
+        - name: container-Dhadgar_Files
+          imageName: dhadgar/files
+        - name: container-Dhadgar_Firewall
+          imageName: dhadgar/firewall
+        - name: container-Dhadgar_Gateway
+          imageName: dhadgar/gateway
+        - name: container-Dhadgar_Identity
+          imageName: dhadgar/identity
+        - name: container-Dhadgar_Mods
+          imageName: dhadgar/mods
+        - name: container-Dhadgar_Nodes
+          imageName: dhadgar/nodes
+        - name: container-Dhadgar_Notifications
+          imageName: dhadgar/notifications
+        - name: container-Dhadgar_Secrets
+          imageName: dhadgar/secrets
+        - name: container-Dhadgar_Servers
+          imageName: dhadgar/servers
+        - name: container-Dhadgar_Tasks
+          imageName: dhadgar/tasks
       runSast: true
       runSca: true
       scaTarget: 'Dhadgar.sln'
