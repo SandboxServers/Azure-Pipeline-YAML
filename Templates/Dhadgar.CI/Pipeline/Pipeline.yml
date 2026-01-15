@@ -98,6 +98,13 @@ parameters:
 - name: kubernetesServiceConnection
   type: string
   default: 'meridiank8s'
+# Security scanning parameters
+- name: runSecurityScans
+  type: boolean
+  default: true
+- name: nvdApiKey
+  type: string
+  default: ''
 
 stages:
 # Build & Test Stage
@@ -133,6 +140,32 @@ stages:
     acrServiceConnection: ${{ parameters.acrServiceConnection }}
     acrLoginServer: ${{ parameters.acrLoginServer }}
     azureServiceConnection: ${{ parameters.azureServiceConnection }}
+
+# Security Scanning Stage
+# Runs after Package, scans all container images + code for vulnerabilities
+- ${{ if eq(parameters.runSecurityScans, true) }}:
+  - template: ../../Standalone/Stages/Security.yml
+    parameters:
+      stageName: 'Security'
+      displayName: 'Security Scanning'
+      dependsOn: ['Package']
+      pool:
+        name: 'Sandbox Servers Agents'
+      containerArtifacts:
+        # Build list of container artifacts for all 'compose' services
+        - ${{ each svc in parameters.services }}:
+          - ${{ if and(eq(svc.deploy, 'compose'), or(eq(parameters.servicesCsvNormalized, ',,'), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(svc.id))), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(replace(svc.id, 'Dhadgar.', '')))))) }}:
+            - name: container-${{ replace(svc.id, '.', '_') }}
+              imageName: dhadgar/${{ replace(lower(svc.id), 'dhadgar.', '') }}
+      runSast: true
+      runSca: true
+      scaTarget: 'Dhadgar.sln'
+      runContainerScan: true
+      runIacScan: true
+      runSecretScan: true
+      runSbom: true
+      failOnCritical: true
+      nvdApiKey: ${{ parameters.nvdApiKey }}
 
 # Infrastructure Provisioning Stages (optional) - Loop through environments
 - ${{ if eq(parameters.provisionInfrastructure, true) }}:
