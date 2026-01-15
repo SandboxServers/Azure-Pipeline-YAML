@@ -50,11 +50,11 @@ jobs:
         -c ${{ parameters.buildConfiguration }}
         /p:SkipGlobalToolInstall=true
 
-  # Publish each deployable project using --no-build (uses already-built assemblies)
+  # Publish and upload artifacts for each deployable project (interleaved for clarity)
   - ${{ each svc in parameters.services }}:
     - ${{ if and(not(startsWith(svc.projectPath, 'tests/')), not(startsWith(svc.projectPath, 'src/Shared/')), or(eq(parameters.servicesCsvNormalized, ',,'), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(svc.id))), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(replace(svc.id, 'Dhadgar.', '')))))) }}:
       - task: DotNetCoreCLI@2
-        displayName: 'Publish: ${{ svc.id }}'
+        displayName: 'dotnet pub: ${{ svc.id }}'
         inputs:
           command: 'publish'
           publishWebProjects: false
@@ -65,13 +65,12 @@ jobs:
             --no-restore
             -o "$(BuildOutputDir)/${{ replace(svc.id, '.', '_') }}"
             /p:SatelliteResourceLanguages=en-US
+            /p:PublishTrimmed=true
+            /p:TrimMode=link
             /p:SkipGlobalToolInstall=true
 
-  # Publish artifacts for each service in parallel
-  - ${{ each svc in parameters.services }}:
-    - ${{ if and(not(startsWith(svc.projectPath, 'tests/')), not(startsWith(svc.projectPath, 'src/Shared/')), or(eq(parameters.servicesCsvNormalized, ',,'), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(svc.id))), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(replace(svc.id, 'Dhadgar.', '')))))) }}:
       - task: PublishPipelineArtifact@1
-        displayName: 'Publish: ${{ svc.id }}'
+        displayName: 'artifact: ${{ svc.id }}'
         inputs:
           targetPath: $(Build.SourcesDirectory)/artifacts/publish/${{ replace(svc.id, '.', '_') }}
           artifactName: src-${{ replace(svc.id, '.', '_') }}
