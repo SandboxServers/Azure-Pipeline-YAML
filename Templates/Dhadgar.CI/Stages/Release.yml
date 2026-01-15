@@ -31,7 +31,7 @@ stages:
 
     # Deploy Scope (dev only)
     ${{ each svc in parameters.services }}:
-      ${{ if and(eq(svc.deploy, 'swa'), eq(svc.id, 'Dhadgar.Scope'), eq(parameters.environment, 'dev')) }}:
+      ${{ if and(eq(svc.deploy, 'swa'), eq(svc.id, 'Dhadgar.Scope'), eq(parameters.environment, 'dev'), svc.swa) }}:
         - template: ../Steps/DeploySwa.yml
           parameters:
             apiToken: ${{ format('$(%s)', svc.swa.apiTokenVar) }}
@@ -41,7 +41,7 @@ stages:
 
     # Deploy ShoppingCart (all environments)
     ${{ each svc in parameters.services }}:
-      ${{ if and(eq(svc.deploy, 'swa'), eq(svc.id, 'Dhadgar.ShoppingCart')) }}:
+      ${{ if and(eq(svc.deploy, 'swa'), eq(svc.id, 'Dhadgar.ShoppingCart'), svc.swa) }}:
         - template: ../Steps/DeploySwa.yml
           parameters:
             apiToken: ${{ format('$(%s)', svc.swa.apiTokenVar) }}
