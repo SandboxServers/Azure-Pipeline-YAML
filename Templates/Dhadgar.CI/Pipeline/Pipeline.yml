@@ -71,15 +71,9 @@ parameters:
 - name: provisionDns
   type: boolean
   default: false
-- name: environment
+- name: environmentsCsvNormalized
   type: string
-  default: 'localdev'
-  values:
-    - localdev
-    - dev
-    - qa
-    - staging
-    - prod
+  default: ',localdev,'
 - name: azureServiceConnection
   type: string
   default: 'meridian-rg-sc-2'
@@ -147,30 +141,104 @@ stages:
       provisionDns: ${{ parameters.provisionDns }}
       tenantId: ${{ parameters.tenantId }}
 
-# Deploy Stage (Compose, CLI, Agent, SWA deployments)
+# Deploy Stages (Compose, CLI, Agent, SWA deployments) - Loop through environments
 # Downloads artifacts from Publish stage and deploys to target environments
 - ${{ if eq(parameters.deploy, true) }}:
-  - template: ../Stages/Deploy.yml
-    parameters:
-      services: ${{ parameters.services }}
-      servicesCsvNormalized: ${{ parameters.servicesCsvNormalized }}
-      environment: ${{ parameters.environment }}
-      localAgentDemand: ${{ parameters.localAgentDemand }}
-      acrServiceConnection: ${{ parameters.acrServiceConnection }}
-      acrLoginServer: ${{ parameters.acrLoginServer }}
-      deploy: ${{ parameters.deploy }}
+  # localdev
+  - ${{ if contains(parameters.environmentsCsvNormalized, ',localdev,') }}:
+    - template: ../Stages/Deploy.yml
+      parameters:
+        services: ${{ parameters.services }}
+        servicesCsvNormalized: ${{ parameters.servicesCsvNormalized }}
+        environment: localdev
+        localAgentDemand: ${{ parameters.localAgentDemand }}
+        acrServiceConnection: ${{ parameters.acrServiceConnection }}
+        acrLoginServer: ${{ parameters.acrLoginServer }}
+        buildConfiguration: ${{ parameters.buildConfiguration }}
+        deploy: ${{ parameters.deploy }}
 
-# Kubernetes Deploy Stage (dev/qa/prod)
-- ${{ if and(eq(parameters.deploy, true), ne(parameters.environment, 'localdev')) }}:
-  - template: ../Stages/DeployKubernetes.yml
-    parameters:
-      environment: ${{ parameters.environment }}
-      namespace: ${{ parameters.environment }}
-      kubernetesServiceConnection: ${{ parameters.kubernetesServiceConnection }}
-      azureServiceConnection: ${{ parameters.azureServiceConnection }}
-      acrName: ${{ parameters.acrName }}
-      acrLoginServer: ${{ parameters.acrLoginServer }}
-      helmChartName: ${{ parameters.helmChartName }}
-      helmVersion: ${{ parameters.helmVersion }}
-      releaseName: ${{ parameters.helmReleaseName }}
-      imageTag: ${{ parameters.imageTag }}
+  # dev
+  - ${{ if contains(parameters.environmentsCsvNormalized, ',dev,') }}:
+    - template: ../Stages/Deploy.yml
+      parameters:
+        services: ${{ parameters.services }}
+        servicesCsvNormalized: ${{ parameters.servicesCsvNormalized }}
+        environment: dev
+        localAgentDemand: ${{ parameters.localAgentDemand }}
+        acrServiceConnection: ${{ parameters.acrServiceConnection }}
+        acrLoginServer: ${{ parameters.acrLoginServer }}
+        buildConfiguration: ${{ parameters.buildConfiguration }}
+        deploy: ${{ parameters.deploy }}
+
+  # staging
+  - ${{ if contains(parameters.environmentsCsvNormalized, ',staging,') }}:
+    - template: ../Stages/Deploy.yml
+      parameters:
+        services: ${{ parameters.services }}
+        servicesCsvNormalized: ${{ parameters.servicesCsvNormalized }}
+        environment: staging
+        localAgentDemand: ${{ parameters.localAgentDemand }}
+        acrServiceConnection: ${{ parameters.acrServiceConnection }}
+        acrLoginServer: ${{ parameters.acrLoginServer }}
+        buildConfiguration: ${{ parameters.buildConfiguration }}
+        deploy: ${{ parameters.deploy }}
+
+  # prod
+  - ${{ if contains(parameters.environmentsCsvNormalized, ',prod,') }}:
+    - template: ../Stages/Deploy.yml
+      parameters:
+        services: ${{ parameters.services }}
+        servicesCsvNormalized: ${{ parameters.servicesCsvNormalized }}
+        environment: prod
+        localAgentDemand: ${{ parameters.localAgentDemand }}
+        acrServiceConnection: ${{ parameters.acrServiceConnection }}
+        acrLoginServer: ${{ parameters.acrLoginServer }}
+        buildConfiguration: ${{ parameters.buildConfiguration }}
+        deploy: ${{ parameters.deploy }}
+
+# Kubernetes Deploy Stages (dev/qa/prod)
+- ${{ if eq(parameters.deploy, true) }}:
+  # dev k8s
+  - ${{ if contains(parameters.environmentsCsvNormalized, ',dev,') }}:
+    - template: ../Stages/DeployKubernetes.yml
+      parameters:
+        environment: dev
+        namespace: dev
+        kubernetesServiceConnection: ${{ parameters.kubernetesServiceConnection }}
+        azureServiceConnection: ${{ parameters.azureServiceConnection }}
+        acrName: ${{ parameters.acrName }}
+        acrLoginServer: ${{ parameters.acrLoginServer }}
+        helmChartName: ${{ parameters.helmChartName }}
+        helmVersion: ${{ parameters.helmVersion }}
+        releaseName: ${{ parameters.helmReleaseName }}
+        imageTag: ${{ parameters.imageTag }}
+
+  # staging k8s
+  - ${{ if contains(parameters.environmentsCsvNormalized, ',staging,') }}:
+    - template: ../Stages/DeployKubernetes.yml
+      parameters:
+        environment: staging
+        namespace: staging
+        kubernetesServiceConnection: ${{ parameters.kubernetesServiceConnection }}
+        azureServiceConnection: ${{ parameters.azureServiceConnection }}
+        acrName: ${{ parameters.acrName }}
+        acrLoginServer: ${{ parameters.acrLoginServer }}
+        helmChartName: ${{ parameters.helmChartName }}
+        helmVersion: ${{ parameters.helmVersion }}
+        releaseName: ${{ parameters.helmReleaseName }}
+        imageTag: ${{ parameters.imageTag }}
+
+  # prod k8s
+  - ${{ if contains(parameters.environmentsCsvNormalized, ',prod,') }}:
+    - template: ../Stages/DeployKubernetes.yml
+      parameters:
+        environment: prod
+        namespace: prod
+        kubernetesServiceConnection: ${{ parameters.kubernetesServiceConnection }}
+        azureServiceConnection: ${{ parameters.azureServiceConnection }}
+        acrName: ${{ parameters.acrName }}
+        acrLoginServer: ${{ parameters.acrLoginServer }}
+        helmChartName: ${{ parameters.helmChartName }}
+        helmVersion: ${{ parameters.helmVersion }}
+        releaseName: ${{ parameters.helmReleaseName }}
+        imageTag: ${{ parameters.imageTag }}

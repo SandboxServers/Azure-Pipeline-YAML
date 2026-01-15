@@ -26,12 +26,7 @@ parameters:
 stages:
   - stage: Deploy_${{ replace(parameters.environment, '-', '_') }}
     displayName: 'Deploy (${{ parameters.environment }})'
-    dependsOn:
-      - Publish  # Depends on Publish stage for container images
-      - ${{ if eq(parameters.environment, 'staging') }}:
-        - Deploy_dev
-      - ${{ if eq(parameters.environment, 'prod') }}:
-        - Deploy_staging
+    dependsOn: Publish  # Depends on Publish stage for container images
     condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'), eq('${{ parameters.deploy }}', 'true'))
     variables:
       Environment: ${{ parameters.environment }}
