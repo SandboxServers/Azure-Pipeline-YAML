@@ -1,6 +1,6 @@
 # Standalone Security Scanning Stage Template
 # Free/open-source security tools for any .NET/Docker pipeline
-# Updated: 2026-01-15 - Fixed YAML syntax, static containerArtifacts array
+# Updated: 2026-01-15 - Added Microsoft Security DevOps integration
 #
 # Usage Example:
 #   - template: Templates/Standalone/Stages/Security.yml
@@ -23,6 +23,11 @@
 # - IaC: Checkov for infrastructure security
 # - Secrets: GitLeaks for exposed credentials
 # - SBOM: Syft for Software Bill of Materials
+#
+# Results Published To:
+# 1. GitHub PR Comments (PostToGitHubPR job) - Requires GITHUB_PAT variable
+# 2. SARIF SAST Scans Tab (auto-detected from artifacts) - Requires extension
+# 3. Microsoft Security DevOps (PublishToSecurityDevOps job) - Requires extension
 
 parameters:
   # Stage configuration
@@ -426,3 +431,56 @@ stages:
                 -ArtifactsPath "$(Pipeline.Workspace)/security-artifacts"
                 -BuildUrl "$(System.CollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId)&view=results"
               pwsh: true
+
+      # Job 8: Publish SARIF to Microsoft Security DevOps (for Extensions UI)
+      - job: PublishToSecurityDevOps
+        displayName: 'Publish SARIF to Security Extensions'
+        dependsOn:
+          - SAST
+          - SCA
+          - ContainerScan_container_Dhadgar_Billing
+          - ContainerScan_container_Dhadgar_Console
+          - ContainerScan_container_Dhadgar_Discord
+          - ContainerScan_container_Dhadgar_Files
+          - ContainerScan_container_Dhadgar_Firewall
+          - ContainerScan_container_Dhadgar_Gateway
+          - ContainerScan_container_Dhadgar_Identity
+          - ContainerScan_container_Dhadgar_Mods
+          - ContainerScan_container_Dhadgar_Nodes
+          - ContainerScan_container_Dhadgar_Notifications
+          - ContainerScan_container_Dhadgar_Secrets
+          - ContainerScan_container_Dhadgar_Servers
+          - ContainerScan_container_Dhadgar_Tasks
+          - IacScan
+          - SecretScan
+        condition: always()
+        pool: ${{ parameters.pool }}
+        steps:
+          - checkout: none
+
+          # Download all SARIF artifacts
+          - task: DownloadPipelineArtifact@2
+            displayName: 'Download all security artifacts'
+            continueOnError: true
+            inputs:
+              itemPattern: '**/*.sarif'
+              targetPath: '$(Pipeline.Workspace)/sarif-results'
+
+          # Publish SARIF files for Microsoft Security DevOps extension
+          - task: PublishSecurityAnalysisLogs@3
+            displayName: 'Publish SARIF to Security DevOps'
+            continueOnError: true
+            inputs:
+              ArtifactName: 'CodeAnalysisLogs'
+              ArtifactType: 'Container'
+              AllTools: true
+              ToolLogsNotFoundAction: 'Standard'
+
+          # Post-analysis for Microsoft Security DevOps (enables Security tab)
+          - task: PostAnalysis@2
+            displayName: 'Post Analysis to Security DevOps'
+            continueOnError: true
+            inputs:
+              GdnBreakAllTools: false
+              GdnBreakPolicy: 'Microsoft'
+              GdnBreakPolicyMinSev: 'Warning'
