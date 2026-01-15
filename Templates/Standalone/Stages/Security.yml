@@ -1,0 +1,351 @@
+# Standalone Security Scanning Stage Template
+# Free/open-source security tools for any .NET/Docker pipeline
+#
+# Usage Example:
+#   - template: Templates/Standalone/Stages/Security.yml
+#     parameters:
+#       stageName: 'SecurityScan'
+#       displayName: 'Security Scanning'
+#       dependsOn: ['Build', 'Package']
+#       pool:
+#         name: 'MyAgentPool'
+#       containerArtifacts:
+#         - name: 'container-gateway'
+#           imageName: 'dhadgar/gateway'
+#       scaTarget: 'Dhadgar.sln'
+#       nvdApiKey: $(NVD_API_KEY)
+#
+# Scanning Categories:
+# - SAST: Semgrep for code analysis
+# - SCA: OWASP Dependency-Check for dependency CVEs
+# - Container: Trivy for image vulnerabilities
+# - IaC: Checkov for infrastructure security
+# - Secrets: GitLeaks for exposed credentials
+# - SBOM: Syft for Software Bill of Materials
+
+parameters:
+  # Stage configuration
+  stageName: 'Security'
+  displayName: 'Security Scanning'
+  dependsOn: ['Build']
+  condition: succeeded()
+  pool:
+    vmImage: 'ubuntu-latest'
+
+  # Paths (use pipeline variables)
+  sourceDirectory: '$(Build.SourcesDirectory)'
+  artifactStagingDirectory: '$(Build.ArtifactStagingDirectory)'
+  pipelineWorkspace: '$(Pipeline.Workspace)'
+  buildId: '$(Build.BuildId)'
+
+  # Container artifacts to scan: [{ name: 'artifact-name', imageName: 'repo/image' }]
+  containerArtifacts: []
+
+  # SAST Configuration
+  runSast: false
+  sastConfig: 'auto'  # 'auto' or path to .semgrep.yml
+  sastSeverities: ['ERROR', 'WARNING']
+
+  # SCA Configuration
+  runSca: false
+  scaTarget: ''  # Path to .sln or directory
+  scaFailOnCvss: 7  # 7=HIGH, 9=CRITICAL, 11=never fail
+  nvdApiKey: ''
+
+  # Container Scanning
+  runContainerScan: false
+  containerSeverities: 'HIGH,CRITICAL'
+
+  # IaC Scanning
+  runIacScan: false
+  iacFrameworks: 'dockerfile kubernetes helm terraform'
+
+  # Secret Scanning
+  runSecretScan: false
+  secretScanDepth: 1  # Git history depth (0=full, 1=shallow)
+
+  # SBOM Generation
+  runSbom: false
+  sbomFormats: 'spdx-json cyclonedx-json'
+
+  # Failure behavior
+  failOnCritical: true
+  continueOnError: false
+
+stages:
+  - stage: ${{ parameters.stageName }}
+    displayName: ${{ parameters.displayName }}
+    dependsOn: ${{ parameters.dependsOn }}
+    condition: ${{ parameters.condition }}
+    jobs:
+      # Job 1: SAST (Semgrep)
+      - ${{ if eq(parameters.runSast, true) }}:
+        - job: SAST
+          displayName: 'SAST: Semgrep'
+          pool: ${{ parameters.pool }}
+          steps:
+            - checkout: self
+              fetchDepth: 1
+            - download: none
+
+            - pwsh: |
+                Write-Host "Installing Semgrep..."
+                pip install semgrep
+              displayName: 'Install Semgrep'
+
+            - pwsh: |
+                Write-Host "Running Semgrep..."
+                semgrep scan `
+                  --config '${{ parameters.sastConfig }}' `
+                  --sarif `
+                  --output "${{ parameters.artifactStagingDirectory }}/semgrep.sarif" `
+                  --metrics off
+              displayName: 'Run Semgrep'
+              continueOnError: ${{ parameters.continueOnError }}
+
+            - task: PublishPipelineArtifact@1
+              displayName: 'Publish SAST results'
+              inputs:
+                targetPath: '${{ parameters.artifactStagingDirectory }}/semgrep.sarif'
+                artifactName: 'security-sast-semgrep'
+              condition: always()
+
+      # Job 2: SCA (OWASP Dependency-Check)
+      - ${{ if eq(parameters.runSca, true) }}:
+        - job: SCA
+          displayName: 'SCA: OWASP Dependency-Check'
+          pool: ${{ parameters.pool }}
+          steps:
+            - checkout: self
+              fetchDepth: 1
+            - download: none
+
+            - pwsh: |
+                $version = "11.1.0"
+                $url = "https://github.com/jeremylong/DependencyCheck/releases/download/v$version/dependency-check-$version-release.zip"
+                Write-Host "Downloading OWASP Dependency-Check v$version..."
+                Invoke-WebRequest -Uri $url -OutFile "$(Agent.TempDirectory)/dep-check.zip"
+                Expand-Archive -Path "$(Agent.TempDirectory)/dep-check.zip" -DestinationPath "$(Agent.TempDirectory)"
+              displayName: 'Install OWASP Dependency-Check'
+
+            - pwsh: |
+                $depCheckPath = "$(Agent.TempDirectory)/dependency-check/bin/dependency-check.sh"
+                if ($IsWindows) {
+                  $depCheckPath = "$(Agent.TempDirectory)/dependency-check/bin/dependency-check.bat"
+                }
+
+                $nvdKey = '${{ parameters.nvdApiKey }}'
+                $nvdArg = if ($nvdKey) { "--nvdApiKey", $nvdKey } else { @() }
+
+                Write-Host "Scanning: ${{ parameters.scaTarget }}"
+                & $depCheckPath `
+                  --project "SecurityScan" `
+                  --scan "${{ parameters.scaTarget }}" `
+                  --format "SARIF" `
+                  --format "HTML" `
+                  --out "${{ parameters.artifactStagingDirectory }}/dependency-check" `
+                  --failOnCVSS ${{ parameters.scaFailOnCvss }} `
+                  @nvdArg
+              displayName: 'Run OWASP Dependency-Check'
+              continueOnError: ${{ parameters.continueOnError }}
+              timeoutInMinutes: 30
+
+            - task: PublishPipelineArtifact@1
+              displayName: 'Publish SCA results'
+              inputs:
+                targetPath: '${{ parameters.artifactStagingDirectory }}/dependency-check'
+                artifactName: 'security-sca-owasp'
+              condition: always()
+
+      # Job 3: Container Scanning (Trivy) - parallel per container
+      - ${{ if eq(parameters.runContainerScan, true) }}:
+        - ${{ each artifact in parameters.containerArtifacts }}:
+          - job: ContainerScan_${{ replace(artifact.name, '-', '_') }}
+            displayName: 'Container: ${{ artifact.imageName }}'
+            pool: ${{ parameters.pool }}
+            steps:
+              - checkout: none
+              - download: none
+
+              - task: DownloadPipelineArtifact@2
+                displayName: 'Download container artifact'
+                inputs:
+                  artifactName: ${{ artifact.name }}
+                  targetPath: '${{ parameters.pipelineWorkspace }}/containers'
+
+              - pwsh: |
+                  $tarball = Get-ChildItem "${{ parameters.pipelineWorkspace }}/containers" -Filter "*.tar" | Select-Object -First 1
+                  if (-not $tarball) {
+                    Write-Error "Container tarball not found"
+                    exit 1
+                  }
+                  docker load -i $tarball.FullName
+                displayName: 'Load container image'
+
+              - pwsh: |
+                  Write-Host "Installing Trivy..."
+                  if ($IsWindows) {
+                    $url = "https://github.com/aquasecurity/trivy/releases/download/v0.58.1/trivy_0.58.1_Windows-64bit.zip"
+                    Invoke-WebRequest -Uri $url -OutFile "$(Agent.TempDirectory)/trivy.zip"
+                    Expand-Archive -Path "$(Agent.TempDirectory)/trivy.zip" -DestinationPath "$(Agent.TempDirectory)/trivy"
+                    $env:PATH += ";$(Agent.TempDirectory)/trivy"
+                  } else {
+                    curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b $(Agent.TempDirectory)/trivy
+                    $env:PATH += ":$(Agent.TempDirectory)/trivy"
+                  }
+                  Write-Host "##vso[task.setvariable variable=PATH]$env:PATH"
+                displayName: 'Install Trivy'
+
+              - pwsh: |
+                  $image = "${{ artifact.imageName }}:${{ parameters.buildId }}"
+                  Write-Host "Scanning: $image"
+
+                  trivy image `
+                    --severity '${{ parameters.containerSeverities }}' `
+                    --format sarif `
+                    --output "${{ parameters.artifactStagingDirectory }}/trivy-${{ replace(artifact.name, '-', '_') }}.sarif" `
+                    --exit-code $(if ('${{ parameters.failOnCritical }}' -eq 'true') { 1 } else { 0 }) `
+                    $image
+                displayName: 'Scan with Trivy'
+                continueOnError: ${{ parameters.continueOnError }}
+
+              - task: PublishPipelineArtifact@1
+                displayName: 'Publish Trivy results'
+                inputs:
+                  targetPath: '${{ parameters.artifactStagingDirectory }}'
+                  artifactName: 'security-container-${{ replace(artifact.name, '-', '_') }}'
+                condition: always()
+
+      # Job 4: IaC Scanning (Checkov)
+      - ${{ if eq(parameters.runIacScan, true) }}:
+        - job: IacScan
+          displayName: 'IaC: Checkov'
+          pool: ${{ parameters.pool }}
+          steps:
+            - checkout: self
+              fetchDepth: 1
+            - download: none
+
+            - pwsh: |
+                Write-Host "Installing Checkov..."
+                pip install checkov
+              displayName: 'Install Checkov'
+
+            - pwsh: |
+                Write-Host "Running Checkov..."
+                checkov `
+                  --directory ${{ parameters.sourceDirectory }} `
+                  --framework ${{ parameters.iacFrameworks }} `
+                  --output sarif `
+                  --output-file-path "${{ parameters.artifactStagingDirectory }}" `
+                  --compact `
+                  --quiet
+              displayName: 'Run Checkov'
+              continueOnError: ${{ parameters.continueOnError }}
+
+            - task: PublishPipelineArtifact@1
+              displayName: 'Publish Checkov results'
+              inputs:
+                targetPath: '${{ parameters.artifactStagingDirectory }}'
+                artifactName: 'security-iac-checkov'
+              condition: always()
+
+      # Job 5: Secret Scanning (GitLeaks)
+      - ${{ if eq(parameters.runSecretScan, true) }}:
+        - job: SecretScan
+          displayName: 'Secrets: GitLeaks'
+          pool: ${{ parameters.pool }}
+          steps:
+            - checkout: self
+              fetchDepth: ${{ parameters.secretScanDepth }}
+            - download: none
+
+            - pwsh: |
+                Write-Host "Installing GitLeaks..."
+                if ($IsWindows) {
+                  $url = "https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_windows_x64.zip"
+                  Invoke-WebRequest -Uri $url -OutFile "$(Agent.TempDirectory)/gitleaks.zip"
+                  Expand-Archive -Path "$(Agent.TempDirectory)/gitleaks.zip" -DestinationPath "$(Agent.TempDirectory)/gitleaks"
+                  $env:PATH += ";$(Agent.TempDirectory)/gitleaks"
+                } else {
+                  curl -sfL https://raw.githubusercontent.com/gitleaks/gitleaks/master/scripts/install.sh | sh -s -- -b $(Agent.TempDirectory)/gitleaks
+                  $env:PATH += ":$(Agent.TempDirectory)/gitleaks"
+                }
+                Write-Host "##vso[task.setvariable variable=PATH]$env:PATH"
+              displayName: 'Install GitLeaks'
+
+            - pwsh: |
+                Write-Host "Running GitLeaks..."
+                gitleaks detect `
+                  --source ${{ parameters.sourceDirectory }} `
+                  --report-format sarif `
+                  --report-path "${{ parameters.artifactStagingDirectory }}/gitleaks.sarif" `
+                  --verbose
+
+                if ($LASTEXITCODE -ne 0) {
+                  Write-Error "GitLeaks found exposed secrets!"
+                  exit 1
+                }
+              displayName: 'Run GitLeaks'
+              continueOnError: false  # Always fail on secrets
+
+            - task: PublishPipelineArtifact@1
+              displayName: 'Publish GitLeaks results'
+              inputs:
+                targetPath: '${{ parameters.artifactStagingDirectory }}/gitleaks.sarif'
+                artifactName: 'security-secrets-gitleaks'
+              condition: always()
+
+      # Job 6: SBOM Generation (Syft) - parallel per container
+      - ${{ if eq(parameters.runSbom, true) }}:
+        - ${{ each artifact in parameters.containerArtifacts }}:
+          - job: SBOM_${{ replace(artifact.name, '-', '_') }}
+            displayName: 'SBOM: ${{ artifact.imageName }}'
+            pool: ${{ parameters.pool }}
+            steps:
+              - checkout: none
+              - download: none
+
+              - task: DownloadPipelineArtifact@2
+                displayName: 'Download container artifact'
+                inputs:
+                  artifactName: ${{ artifact.name }}
+                  targetPath: '${{ parameters.pipelineWorkspace }}/containers'
+
+              - pwsh: |
+                  $tarball = Get-ChildItem "${{ parameters.pipelineWorkspace }}/containers" -Filter "*.tar" | Select-Object -First 1
+                  docker load -i $tarball.FullName
+                displayName: 'Load container image'
+
+              - pwsh: |
+                  Write-Host "Installing Syft..."
+                  if ($IsWindows) {
+                    $url = "https://github.com/anchore/syft/releases/download/v1.18.1/syft_1.18.1_windows_amd64.zip"
+                    Invoke-WebRequest -Uri $url -OutFile "$(Agent.TempDirectory)/syft.zip"
+                    Expand-Archive -Path "$(Agent.TempDirectory)/syft.zip" -DestinationPath "$(Agent.TempDirectory)/syft"
+                    $env:PATH += ";$(Agent.TempDirectory)/syft"
+                  } else {
+                    curl -sSfL https://raw.githubusercontent.com/anchore/syft/main/install.sh | sh -s -- -b $(Agent.TempDirectory)/syft
+                    $env:PATH += ":$(Agent.TempDirectory)/syft"
+                  }
+                  Write-Host "##vso[task.setvariable variable=PATH]$env:PATH"
+                displayName: 'Install Syft'
+
+              - pwsh: |
+                  $image = "${{ artifact.imageName }}:${{ parameters.buildId }}"
+                  $formats = '${{ parameters.sbomFormats }}'.Split(' ')
+
+                  Write-Host "Generating SBOM for: $image"
+
+                  foreach ($format in $formats) {
+                    $outFile = "${{ parameters.artifactStagingDirectory }}/sbom-${{ replace(artifact.name, '-', '_') }}-$format.json"
+                    syft "$image" -o "$format=$outFile"
+                    Write-Host "Generated: $outFile"
+                  }
+                displayName: 'Generate SBOM'
+
+              - task: PublishPipelineArtifact@1
+                displayName: 'Publish SBOM'
+                inputs:
+                  targetPath: '${{ parameters.artifactStagingDirectory }}'
+                  artifactName: 'sbom-${{ replace(artifact.name, '-', '_') }}'
