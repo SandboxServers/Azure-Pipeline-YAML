@@ -103,11 +103,27 @@ This architecture provides:
 - Tag images for ACR
 - Push images to Azure Container Registry
 
-**Container Publish Process** (`Templates/Dhadgar.CI/Jobs/PublishContainer.yml`):
-1. Download container artifact from Package stage (`container-{ServiceId}`)
-2. Load image from tarball with `docker load`
-3. Tag image for ACR (BuildId + latest)
-4. Push to ACR with `docker push`
+**Cost Control**:
+The Publish stage is gated by the `publishContainers` parameter (default: `true`):
+- When `publishContainers: false`, images are built and validated in Package stage but NOT pushed to ACR
+- Saves ACR storage costs during development/testing
+- Useful for PR validation without polluting ACR
+- Deployment stages will fail if Publish is skipped (expected behavior)
+
+**Container Publish Process** (per-microservice deployment jobs in `Templates/Dhadgar.CI/Jobs/PublishContainer.yml`):
+1. Each microservice gets its own deployment job with environment `meridian-acr-publish`
+2. Downloads container artifact from Package stage (`container-{ServiceId}`)
+3. Loads image from tarball with `docker load`
+4. Tags image for ACR (BuildId + latest)
+5. Pushes to ACR with `docker push`
+
+**Environment Approval Gate**:
+- **Environment**: `meridian-acr-publish`
+- Configure approval checks in Azure DevOps at Pipelines → Environments → meridian-acr-publish
+- Single approval gate covers all microservice publish jobs in the stage
+- Prevents accidental ACR pushes that cost money
+- Recommended approvers: Lead developers or ops team
+- Timeout: 30 days (allows approval during business hours)
 
 **Artifacts Published**: None (pushes to ACR instead)
 
@@ -118,6 +134,13 @@ This architecture provides:
 - Reduce pipeline cost (ACR ingress/storage)
 - Prevent unauthorized image publication
 - Match deployment stage behavior
+
+**Manual Cost Control**:
+Set `publishContainers: false` in pipeline parameters to:
+- Build and validate containers without pushing to ACR
+- Reduce ACR storage costs during iterative development
+- Test container builds without incurring storage charges
+- Note: Deploy stages will fail if containers aren't published (expected)
 
 ## Dockerfile Migration
 
@@ -474,10 +497,13 @@ Deployment jobs use Azure DevOps environments to gate deployments:
 
 | Environment | Requires Approval | Purpose |
 |-------------|-------------------|---------|
+| `meridian-acr-publish` | ✅ Recommended | Gate ACR container publishing (costs money) |
 | `meridian-localdev` | ❌ No | Development testing on self-hosted hardware |
 | `meridian-dev` | ✅ Yes | Development environment in Kubernetes cluster |
 | `meridian-staging` | ✅ Yes | Pre-production environment for testing |
 | `meridian-prod` | ✅ Yes | Production environment with customer traffic |
+
+**Note**: The `meridian-acr-publish` environment gates the Publish stage. This prevents accidental ACR pushes that incur storage costs.
 
 **How to configure approvals:**
 

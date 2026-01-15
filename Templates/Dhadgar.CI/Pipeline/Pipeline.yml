@@ -29,6 +29,9 @@ parameters:
 - name: deploy
   type: boolean
   default: true
+- name: publishContainers
+  type: boolean
+  default: true
 # Local dev compose deploys (agent demand selector for localdev stage)
 - name: localAgentDemand
   type: string
@@ -117,6 +120,7 @@ stages:
     services: ${{ parameters.services }}
     servicesCsvNormalized: ${{ parameters.servicesCsvNormalized }}
     buildConfiguration: ${{ parameters.buildConfiguration }}
+    publishContainers: ${{ parameters.publishContainers }}
     publishHelmChart: ${{ parameters.publishHelmChart }}
     publishComposeAssets: ${{ parameters.publishComposeAssets }}
     composeAssetPath: ${{ parameters.composeAssetPath }}

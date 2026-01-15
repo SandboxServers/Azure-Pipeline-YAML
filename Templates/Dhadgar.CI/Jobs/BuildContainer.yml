@@ -117,11 +117,20 @@ jobs:
             $(Build.BuildId)
             latest
 
+      # List images to debug what was built
+      - pwsh: |
+          Write-Host "Available Docker images:"
+          docker images
+        displayName: 'List Docker images'
+
       # Save image as tarball for PublishContainer job
       - pwsh: |
           $imageName = "$(imageName)"
           $buildId = "$(Build.BuildId)"
-          $imageTag = "${imageName}:${buildId}"
+          $acrLoginServer = "${{ parameters.acrLoginServer }}"
+
+          # Docker@2 with containerRegistry param tags with ACR prefix
+          $imageTag = "${acrLoginServer}/${imageName}:${buildId}"
           $tarballPath = "$(Build.ArtifactStagingDirectory)/container-$(serviceName)-$(Build.BuildId).tar"
 
           Write-Host "Saving image $imageTag to $tarballPath"

@@ -1,6 +1,7 @@
 # Publish Container Job
 # Loads Docker image from tarball artifact and pushes to ACR
 # Only runs on non-PR builds
+# Uses deployment job with environment for approval gates
 #
 # Depends on BuildContainer job completing successfully
 
@@ -13,93 +14,97 @@ parameters:
   acrLoginServer: ''
 
 jobs:
-  - job: PublishContainer_${{ replace(parameters.service.id, '.', '_') }}
+  - deployment: PublishContainer_${{ replace(parameters.service.id, '.', '_') }}
     displayName: 'Publish Container: ${{ parameters.service.id }}'
     condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+    environment: 'meridian-acr-publish'
     pool:
       name: 'Sandbox Servers Agents'
     variables:
       serviceName: ${{ replace(lower(parameters.service.id), 'dhadgar.', '') }}
       imageName: dhadgar/${{ replace(lower(parameters.service.id), 'dhadgar.', '') }}
       containerArtifactName: container-${{ replace(parameters.service.id, '.', '_') }}
-    steps:
-      - checkout: none
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            - checkout: none
 
-      # Download container tarball from BuildContainer job
-      - task: DownloadPipelineArtifact@2
-        displayName: 'Download container artifact'
-        inputs:
-          artifact: $(containerArtifactName)
-          path: '$(Pipeline.Workspace)/containers'
+            # Download container tarball from BuildContainer job
+            - task: DownloadPipelineArtifact@2
+              displayName: 'Download container artifact'
+              inputs:
+                artifact: $(containerArtifactName)
+                path: '$(Pipeline.Workspace)/containers'
 
-      # Load image from tarball
-      - pwsh: |
-          $tarballPath = Get-ChildItem -Path "$(Pipeline.Workspace)/containers" -Filter "*.tar" | Select-Object -First 1 -ExpandProperty FullName
+            # Load image from tarball
+            - pwsh: |
+                $tarballPath = Get-ChildItem -Path "$(Pipeline.Workspace)/containers" -Filter "*.tar" | Select-Object -First 1 -ExpandProperty FullName
 
-          if (-not $tarballPath) {
-            Write-Error "Container tarball not found in $(Pipeline.Workspace)/containers"
-            exit 1
-          }
+                if (-not $tarballPath) {
+                  Write-Error "Container tarball not found in $(Pipeline.Workspace)/containers"
+                  exit 1
+                }
 
-          Write-Host "Loading image from $tarballPath"
-          docker load -i "$tarballPath"
+                Write-Host "Loading image from $tarballPath"
+                docker load -i "$tarballPath"
 
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to load Docker image"
-            exit 1
-          }
+                if ($LASTEXITCODE -ne 0) {
+                  Write-Error "Failed to load Docker image"
+                  exit 1
+                }
 
-          Write-Host "Image loaded successfully"
-        displayName: 'Load image from tarball'
+                Write-Host "Image loaded successfully"
+              displayName: 'Load image from tarball'
 
-      # Tag image for ACR if not already tagged
-      - pwsh: |
-          $imageName = "$(imageName)"
-          $buildId = "$(Build.BuildId)"
-          $acrLoginServer = "${{ parameters.acrLoginServer }}"
+            # Tag image for ACR if not already tagged
+            - pwsh: |
+                $imageName = "$(imageName)"
+                $buildId = "$(Build.BuildId)"
+                $acrLoginServer = "${{ parameters.acrLoginServer }}"
 
-          $localTag = "${imageName}:${buildId}"
-          $remoteTag = "${acrLoginServer}/${imageName}:${buildId}"
-          $remoteLatest = "${acrLoginServer}/${imageName}:latest"
+                $localTag = "${imageName}:${buildId}"
+                $remoteTag = "${acrLoginServer}/${imageName}:${buildId}"
+                $remoteLatest = "${acrLoginServer}/${imageName}:latest"
 
-          Write-Host "Tagging image for ACR:"
-          Write-Host "  Local: $localTag"
-          Write-Host "  Remote (BuildId): $remoteTag"
-          Write-Host "  Remote (latest): $remoteLatest"
+                Write-Host "Tagging image for ACR:"
+                Write-Host "  Local: $localTag"
+                Write-Host "  Remote (BuildId): $remoteTag"
+                Write-Host "  Remote (latest): $remoteLatest"
 
-          docker tag "$localTag" "$remoteTag"
-          docker tag "$localTag" "$remoteLatest"
+                docker tag "$localTag" "$remoteTag"
+                docker tag "$localTag" "$remoteLatest"
 
-          if ($LASTEXITCODE -ne 0) {
-            Write-Error "Failed to tag image"
-            exit 1
-          }
+                if ($LASTEXITCODE -ne 0) {
+                  Write-Error "Failed to tag image"
+                  exit 1
+                }
 
-          Write-Host "Image tagged successfully"
-        displayName: 'Tag image for ACR'
+                Write-Host "Image tagged successfully"
+              displayName: 'Tag image for ACR'
 
-      # Push image with BuildId tag
-      - task: Docker@2
-        displayName: 'Push image (BuildId tag)'
-        inputs:
-          containerRegistry: ${{ parameters.acrServiceConnection }}
-          repository: $(imageName)
-          command: 'push'
-          tags: $(Build.BuildId)
+            # Push image with BuildId tag
+            - task: Docker@2
+              displayName: 'Push image (BuildId tag)'
+              inputs:
+                containerRegistry: ${{ parameters.acrServiceConnection }}
+                repository: $(imageName)
+                command: 'push'
+                tags: $(Build.BuildId)
 
-      # Push image with latest tag
-      - task: Docker@2
-        displayName: 'Push image (latest tag)'
-        inputs:
-          containerRegistry: ${{ parameters.acrServiceConnection }}
-          repository: $(imageName)
-          command: 'push'
-          tags: latest
+            # Push image with latest tag
+            - task: Docker@2
+              displayName: 'Push image (latest tag)'
+              inputs:
+                containerRegistry: ${{ parameters.acrServiceConnection }}
+                repository: $(imageName)
+                command: 'push'
+                tags: latest
 
-      # Output final image reference
-      - pwsh: |
-          $imageRef = "${{ parameters.acrLoginServer }}/$(imageName):$(Build.BuildId)"
-          Write-Host "Published image: $imageRef"
-          Write-Host "##vso[task.setvariable variable=ImageRef;isOutput=true]$imageRef"
-        name: imageOutput
-        displayName: 'Output published image reference'
+            # Output final image reference
+            - pwsh: |
+                $imageRef = "${{ parameters.acrLoginServer }}/$(imageName):$(Build.BuildId)"
+                Write-Host "Published image: $imageRef"
+                Write-Host "##vso[task.setvariable variable=ImageRef;isOutput=true]$imageRef"
+              name: imageOutput
+              displayName: 'Output published image reference'
