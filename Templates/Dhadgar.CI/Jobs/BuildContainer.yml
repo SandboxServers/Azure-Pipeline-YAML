@@ -161,3 +161,34 @@ jobs:
           Write-Host "##vso[task.setvariable variable=ImageRef;isOutput=true]$imageRef"
         name: imageOutput
         displayName: 'Output image reference'
+
+      # Clean up Docker images to save disk space
+      - pwsh: |
+          $imageName = "$(imageName)"
+          $buildId = "$(Build.BuildId)"
+          $acrLoginServer = "${{ parameters.acrLoginServer }}"
+
+          Write-Host "Cleaning up Docker images to save disk space..."
+
+          # Only remove the BuildId-tagged image (not latest, which may be deployed)
+          # Use --no-prune to keep layers that other images might be using
+          $buildIdImage = "${acrLoginServer}/${imageName}:${buildId}"
+
+          Write-Host "Removing image: $buildIdImage"
+          docker rmi "$buildIdImage" --no-prune 2>&1 | Out-Null
+
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "Successfully removed $buildIdImage"
+          } else {
+            Write-Host "Image $buildIdImage not found or already removed (this is okay)"
+          }
+
+          # Prune only dangling images (untagged intermediate layers)
+          # This is safe - won't remove images in use by containers
+          Write-Host "Pruning dangling images..."
+          docker image prune -f
+
+          Write-Host "Docker cleanup complete"
+        displayName: 'Clean up Docker images'
+        condition: always()
+        continueOnError: true

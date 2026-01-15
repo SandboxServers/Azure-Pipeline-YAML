@@ -77,10 +77,12 @@ This architecture provides:
 
 **Container Build Process** (`Templates/Dhadgar.CI/Jobs/BuildContainer.yml`):
 1. Download pre-built artifact from Build stage (`src-{ServiceId}`)
-2. Resolve Dockerfile path
-3. Run `docker build` with `--build-arg BUILD_ARTIFACT_PATH=...`
-4. Save image as tarball with `docker save`
-5. Publish container artifact (`container-{ServiceId}`)
+2. Copy artifacts into Docker build context (`.docker-artifacts/`)
+3. Resolve Dockerfile path (prefers `Dockerfile.pipeline`, falls back to `Dockerfile`)
+4. Run `docker build` with `--build-arg BUILD_ARTIFACT_PATH=...`
+5. Save image as tarball with `docker save`
+6. Publish container artifact (`container-{ServiceId}`)
+7. Clean up Docker images and prune dangling layers to save disk space
 
 **Artifacts Published**:
 - `container-{ServiceId}` - Docker image tarballs
@@ -116,6 +118,7 @@ The Publish stage is gated by the `publishContainers` parameter (default: `true`
 3. Loads image from tarball with `docker load`
 4. Tags image for ACR (BuildId + latest)
 5. Pushes to ACR with `docker push`
+6. Clean up Docker images and prune dangling layers to save disk space
 
 **Environment Approval Gate**:
 - **Environment**: `meridian-acr-publish`

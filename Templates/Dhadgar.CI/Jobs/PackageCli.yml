@@ -51,6 +51,7 @@ jobs:
               -p:PublishSingleFile=true `
               -p:PublishTrimmed=true `
               -p:IncludeNativeLibrariesForSelfExtract=true `
+              -p:SkipGlobalToolInstall=true `
               -o $outputDir
 
             if ($LASTEXITCODE -ne 0) {
