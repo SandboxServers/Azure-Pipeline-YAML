@@ -34,8 +34,9 @@ jobs:
             - task: DownloadPipelineArtifact@2
               displayName: 'Download container artifact'
               inputs:
-                artifact: $(containerArtifactName)
-                path: '$(Pipeline.Workspace)/containers'
+                buildType: 'current'
+                artifactName: $(containerArtifactName)
+                targetPath: '$(Pipeline.Workspace)/containers'
 
             # Load image from tarball
             - pwsh: |
