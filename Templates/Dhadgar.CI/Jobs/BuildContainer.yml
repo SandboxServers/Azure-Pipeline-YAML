@@ -2,6 +2,12 @@
 # Builds Docker image for a service using pre-built artifacts from Build stage
 # Saves image as tarball artifact for PublishContainer job
 #
+# Process:
+# 1. Downloads pre-built artifacts from Build stage
+# 2. Copies artifacts into build context (.docker-artifacts/) so Docker can access them
+# 3. Passes relative artifact path to Dockerfile via BUILD_ARTIFACT_PATH build arg
+# 4. Builds image and saves as tarball
+#
 # Depends on the Build job completing successfully for this service
 
 parameters:
@@ -33,6 +39,20 @@ jobs:
         inputs:
           artifact: $(artifactName)
           path: '$(Pipeline.Workspace)/artifacts/$(artifactName)'
+
+      # Copy artifacts into build context so Docker can access them
+      - pwsh: |
+          $artifactName = "$(artifactName)"
+          $artifactSource = "$(Pipeline.Workspace)/artifacts/$artifactName"
+          $artifactDest = "$(Build.SourcesDirectory)/.docker-artifacts/$artifactName"
+
+          Write-Host "Copying artifacts from $artifactSource to $artifactDest"
+          New-Item -ItemType Directory -Force -Path $artifactDest | Out-Null
+          Copy-Item -Path "$artifactSource/*" -Destination $artifactDest -Recurse -Force
+
+          Write-Host "Artifacts copied successfully"
+          Write-Host "##vso[task.setvariable variable=DockerArtifactPath].docker-artifacts/$artifactName"
+        displayName: 'Copy artifacts into build context'
 
       # Determine Dockerfile path based on project structure
       # Prefers Dockerfile.pipeline (artifact-based) over Dockerfile (local build)
@@ -92,7 +112,7 @@ jobs:
           command: 'build'
           Dockerfile: $(DockerfilePath)
           buildContext: '$(Build.SourcesDirectory)'
-          arguments: '--build-arg BUILD_ARTIFACT_PATH=$(Pipeline.Workspace)/artifacts/$(artifactName)'
+          arguments: '--build-arg BUILD_ARTIFACT_PATH=$(DockerArtifactPath)'
           tags: |
             $(Build.BuildId)
             latest
