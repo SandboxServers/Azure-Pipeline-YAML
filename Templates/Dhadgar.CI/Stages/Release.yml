@@ -29,33 +29,27 @@ stages:
     steps:
     - checkout: self
 
-    # Deploy each SWA service
+    # Deploy Scope (dev only)
     ${{ each svc in parameters.services }}:
-      ${{ if eq(svc.deploy, 'swa') }}:
-        # Scope: dev only
-        ${{ if eq(svc.id, 'Dhadgar.Scope') }}:
-          ${{ if eq(parameters.environment, 'dev') }}:
-            - bash: echo "Deploying Scope (dev only)..."
-              displayName: 'Deploy Scope (dev only)'
-            - template: ../Steps/DeploySwa.yml
-              parameters:
-                apiToken: ${{ format('$(%s)', svc.swa.apiTokenVar) }}
-                appLocation: ${{ svc.swa.appLocation }}
-                outputLocation: ${{ svc.swa.outputLocation }}
-                appBuildCommand: ${{ svc.swa.appBuildCommand }}
+      ${{ if and(eq(svc.deploy, 'swa'), eq(svc.id, 'Dhadgar.Scope'), eq(parameters.environment, 'dev')) }}:
+        - template: ../Steps/DeploySwa.yml
+          parameters:
+            apiToken: ${{ format('$(%s)', svc.swa.apiTokenVar) }}
+            appLocation: ${{ svc.swa.appLocation }}
+            outputLocation: ${{ svc.swa.outputLocation }}
+            appBuildCommand: ${{ svc.swa.appBuildCommand }}
 
-        # ShoppingCart: all environments
-        ${{ if eq(svc.id, 'Dhadgar.ShoppingCart') }}:
-          - bash: echo "Deploying ShoppingCart (${{ parameters.environment }})..."
-            displayName: 'Deploy ShoppingCart (${{ parameters.environment }})'
-          - template: ../Steps/DeploySwa.yml
-            parameters:
-              apiToken: ${{ format('$(%s)', svc.swa.apiTokenVar) }}
-              appLocation: ${{ svc.swa.appLocation }}
-              outputLocation: ${{ svc.swa.outputLocation }}
-              ${{ if svc.swa.apiLocation }}:
-                apiLocation: ${{ svc.swa.apiLocation }}
-              appBuildCommand: ${{ svc.swa.appBuildCommand }}
+    # Deploy ShoppingCart (all environments)
+    ${{ each svc in parameters.services }}:
+      ${{ if and(eq(svc.deploy, 'swa'), eq(svc.id, 'Dhadgar.ShoppingCart')) }}:
+        - template: ../Steps/DeploySwa.yml
+          parameters:
+            apiToken: ${{ format('$(%s)', svc.swa.apiTokenVar) }}
+            appLocation: ${{ svc.swa.appLocation }}
+            outputLocation: ${{ svc.swa.outputLocation }}
+            ${{ if svc.swa.apiLocation }}:
+              apiLocation: ${{ svc.swa.apiLocation }}
+            appBuildCommand: ${{ svc.swa.appBuildCommand }}
 
     # TODO: Panel website deployment (TBD - Astro? SWA? Azure App Service?)
     # - bash: echo "Panel deployment not yet implemented"
