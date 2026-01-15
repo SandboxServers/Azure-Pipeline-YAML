@@ -130,16 +130,51 @@ stages:
     acrLoginServer: ${{ parameters.acrLoginServer }}
     azureServiceConnection: ${{ parameters.azureServiceConnection }}
 
-# Infrastructure Provisioning Stage (optional)
+# Infrastructure Provisioning Stages (optional) - Loop through environments
 - ${{ if eq(parameters.provisionInfrastructure, true) }}:
-  - template: ../Stages/Infrastructure.yml
-    parameters:
-      environment: ${{ parameters.environment }}
-      azureServiceConnection: ${{ parameters.azureServiceConnection }}
-      cloudflareApiToken: ${{ parameters.cloudflareApiToken }}
-      provisionAzure: ${{ parameters.provisionInfrastructure }}
-      provisionDns: ${{ parameters.provisionDns }}
-      tenantId: ${{ parameters.tenantId }}
+  # localdev
+  - ${{ if contains(parameters.environmentsCsvNormalized, ',localdev,') }}:
+    - template: ../Stages/Infrastructure.yml
+      parameters:
+        environment: localdev
+        azureServiceConnection: ${{ parameters.azureServiceConnection }}
+        cloudflareApiToken: ${{ parameters.cloudflareApiToken }}
+        provisionAzure: ${{ parameters.provisionInfrastructure }}
+        provisionDns: ${{ parameters.provisionDns }}
+        tenantId: ${{ parameters.tenantId }}
+
+  # dev
+  - ${{ if contains(parameters.environmentsCsvNormalized, ',dev,') }}:
+    - template: ../Stages/Infrastructure.yml
+      parameters:
+        environment: dev
+        azureServiceConnection: ${{ parameters.azureServiceConnection }}
+        cloudflareApiToken: ${{ parameters.cloudflareApiToken }}
+        provisionAzure: ${{ parameters.provisionInfrastructure }}
+        provisionDns: ${{ parameters.provisionDns }}
+        tenantId: ${{ parameters.tenantId }}
+
+  # staging
+  - ${{ if contains(parameters.environmentsCsvNormalized, ',staging,') }}:
+    - template: ../Stages/Infrastructure.yml
+      parameters:
+        environment: staging
+        azureServiceConnection: ${{ parameters.azureServiceConnection }}
+        cloudflareApiToken: ${{ parameters.cloudflareApiToken }}
+        provisionAzure: ${{ parameters.provisionInfrastructure }}
+        provisionDns: ${{ parameters.provisionDns }}
+        tenantId: ${{ parameters.tenantId }}
+
+  # prod
+  - ${{ if contains(parameters.environmentsCsvNormalized, ',prod,') }}:
+    - template: ../Stages/Infrastructure.yml
+      parameters:
+        environment: prod
+        azureServiceConnection: ${{ parameters.azureServiceConnection }}
+        cloudflareApiToken: ${{ parameters.cloudflareApiToken }}
+        provisionAzure: ${{ parameters.provisionInfrastructure }}
+        provisionDns: ${{ parameters.provisionDns }}
+        tenantId: ${{ parameters.tenantId }}
 
 # Deploy Stages (Compose, CLI, Agent, SWA deployments) - Loop through environments
 # Downloads artifacts from Publish stage and deploys to target environments
