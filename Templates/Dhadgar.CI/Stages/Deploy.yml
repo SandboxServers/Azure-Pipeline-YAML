@@ -43,7 +43,7 @@ stages:
     ${{ if eq(parameters.provisionInfrastructure, true) }}:
       dependsOn: Infrastructure_${{ parameters.environment }}
     ${{ else }}:
-      dependsOn: Publish
+      dependsOn: Package  # Changed from Publish (which is now disabled)
     condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'), eq('${{ parameters.deploy }}', 'true'))
     variables:
       Environment: ${{ parameters.environment }}
