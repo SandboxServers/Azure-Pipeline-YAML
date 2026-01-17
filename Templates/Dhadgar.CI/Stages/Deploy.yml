@@ -44,7 +44,7 @@ stages:
       dependsOn: Infrastructure_${{ parameters.environment }}
     ${{ else }}:
       dependsOn: Package  # Changed from Publish (which is now disabled)
-    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'), eq('${{ parameters.deploy }}', 'true'))
+    condition: and(succeeded(), eq('${{ parameters.deploy }}', 'true'))  # Removed PR check - deploy from PRs too
     variables:
       Environment: ${{ parameters.environment }}
       BuildConfiguration: ${{ parameters.buildConfiguration }}
