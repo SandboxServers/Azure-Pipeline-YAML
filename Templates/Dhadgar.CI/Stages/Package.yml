@@ -76,18 +76,19 @@ stages:
             composePath: ${{ parameters.composeAssetPath }}
             artifactName: ${{ parameters.composeAssetArtifactName }}
 
-  # Publish stage - pushes container images to ACR (non-PR only, gated by publishContainers parameter)
+  # DISABLED: Publish stage - pushes container images to ACR (non-PR only, gated by publishContainers parameter)
   # Each microservice gets its own deployment job with environment for approval gates
-  - stage: Publish
-    displayName: 'Publish Containers'
-    dependsOn: Package
-    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'), eq('${{ parameters.publishContainers }}', 'true'))
-    jobs:
-      # Publish Docker images to ACR (one deployment job per microservice)
-      - ${{ each svc in parameters.services }}:
-        - ${{ if and(eq(svc.deploy, 'compose'), or(eq(parameters.servicesCsvNormalized, ',,'), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(svc.id))), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(replace(svc.id, 'Dhadgar.', '')))))) }}:
-          - template: ../Jobs/PublishContainer.yml
-            parameters:
-              service: ${{ svc }}
-              acrServiceConnection: ${{ parameters.acrServiceConnection }}
-              acrLoginServer: ${{ parameters.acrLoginServer }}
+  # Commented out because all compose services are disabled - services run locally on Docker Desktop
+  # - stage: Publish
+  #   displayName: 'Publish Containers'
+  #   dependsOn: Package
+  #   condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'), eq('${{ parameters.publishContainers }}', 'true'))
+  #   jobs:
+  #     # Publish Docker images to ACR (one deployment job per microservice)
+  #     - ${{ each svc in parameters.services }}:
+  #       - ${{ if and(eq(svc.deploy, 'compose'), or(eq(parameters.servicesCsvNormalized, ',,'), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(svc.id))), contains(lower(parameters.servicesCsvNormalized), format(',{0},', lower(replace(svc.id, 'Dhadgar.', '')))))) }}:
+  #         - template: ../Jobs/PublishContainer.yml
+  #           parameters:
+  #             service: ${{ svc }}
+  #             acrServiceConnection: ${{ parameters.acrServiceConnection }}
+  #             acrLoginServer: ${{ parameters.acrLoginServer }}
