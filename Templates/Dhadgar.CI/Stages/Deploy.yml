@@ -44,7 +44,7 @@ stages:
       dependsOn: Infrastructure_${{ parameters.environment }}
     ${{ else }}:
       dependsOn: Package  # Changed from Publish (which is now disabled)
-    condition: and(succeeded(), eq('${{ parameters.deploy }}', 'true'))  # Removed PR check - deploy from PRs too
+    condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'), eq('${{ parameters.deploy }}', 'true'))
     variables:
       Environment: ${{ parameters.environment }}
       BuildConfiguration: ${{ parameters.buildConfiguration }}
@@ -124,91 +124,43 @@ stages:
             outputLocation: _swa_publish/wwwroot
             appBuildCommand: dotnet publish src/Dhadgar.ShoppingCart/Dhadgar.ShoppingCart.csproj -c $(BuildConfiguration) -o _swa_publish
 
-      # dev/staging/prod: Helm/Kubernetes Deployment
-      - ${{ if ne(parameters.environment, 'localdev') }}:
-        - deployment: DeployKubernetes
-          displayName: 'Helm deploy to K8s'
-          environment: 'meridian-${{ parameters.environment }}'
-          pool:
-            name: 'Sandbox Servers Agents'
-          variables:
-            Namespace: ${{ parameters.environment }}
-            HelmChartVersion: $[ stageDependencies.Package.PackageHelm.outputs['helmPublish.HelmChartVersion'] ]
-          strategy:
-            runOnce:
-              deploy:
-                steps:
-                  - checkout: none
-                  - download: none
-
-                  - task: HelmInstaller@1
-                    displayName: 'Install Helm'
-                    inputs:
-                      helmVersionToInstall: '3.13.0'
-
-                  - task: Kubernetes@1
-                    displayName: 'Login to Kubernetes'
-                    inputs:
-                      connectionType: 'Kubernetes Service Connection'
-                      kubernetesServiceEndpoint: ${{ parameters.kubernetesServiceConnection }}
-                      command: 'login'
-
-                  - task: AzureCLI@2
-                    displayName: 'Login to ACR for Helm OCI'
-                    inputs:
-                      azureSubscription: ${{ parameters.azureServiceConnection }}
-                      scriptType: 'bash'
-                      scriptLocation: 'inlineScript'
-                      inlineScript: |
-                        set -euo pipefail
-
-                        ACR_NAME="${{ parameters.acrName }}"
-                        ACR_LOGIN_SERVER="${{ parameters.acrLoginServer }}"
-
-                        az acr login --name "$ACR_NAME"
-
-                        ACCESS_TOKEN="$(az acr login --name "$ACR_NAME" --expose-token --output tsv --query accessToken)"
-                        echo "$ACCESS_TOKEN" | helm registry login "$ACR_LOGIN_SERVER" \
-                          --username 00000000-0000-0000-0000-000000000000 \
-                          --password-stdin
-
-                  - bash: |
-                      set -euo pipefail
-
-                      ACR_LOGIN_SERVER="${{ parameters.acrLoginServer }}"
-                      CHART_NAME="meridian-console"
-                      RELEASE_NAME="meridian"
-                      NAMESPACE="$(Namespace)"
-                      IMAGE_TAG="$(Build.BuildId)"
-                      CHART_VERSION="$(HelmChartVersion)"
-
-                      chart_ref="oci://${ACR_LOGIN_SERVER}/helm/${CHART_NAME}"
-                      version_arg=""
-                      if [ -n "$CHART_VERSION" ] && [ "$CHART_VERSION" != "null" ]; then
-                        version_arg="--version $CHART_VERSION"
-                      fi
-
-                      echo "Deploying chart $chart_ref $version_arg to namespace $NAMESPACE"
-
-                      helm upgrade --install "$RELEASE_NAME" "$chart_ref" \
-                        --namespace "$NAMESPACE" \
-                        --create-namespace \
-                        $version_arg \
-                        --set-string global.imageRegistry="$ACR_LOGIN_SERVER" \
-                        --set-string gateway.image.tag="$IMAGE_TAG" \
-                        --set-string identity.image.tag="$IMAGE_TAG" \
-                        --set-string billing.image.tag="$IMAGE_TAG" \
-                        --set-string servers.image.tag="$IMAGE_TAG" \
-                        --set-string nodes.image.tag="$IMAGE_TAG" \
-                        --set-string tasks.image.tag="$IMAGE_TAG" \
-                        --set-string files.image.tag="$IMAGE_TAG" \
-                        --set-string mods.image.tag="$IMAGE_TAG" \
-                        --set-string console.image.tag="$IMAGE_TAG" \
-                        --set-string notifications.image.tag="$IMAGE_TAG" \
-                        --set-string firewall.image.tag="$IMAGE_TAG" \
-                        --set-string secrets.image.tag="$IMAGE_TAG" \
-                        --set-string discord.image.tag="$IMAGE_TAG"
-                    displayName: 'Helm upgrade'
+      # DISABLED: dev/staging/prod: Helm/Kubernetes Deployment - not using K8s currently
+      # - ${{ if ne(parameters.environment, 'localdev') }}:
+      #   - deployment: DeployKubernetes
+      #     displayName: 'Helm deploy to K8s'
+      #     environment: 'meridian-${{ parameters.environment }}'
+      #     pool:
+      #       name: 'Sandbox Servers Agents'
+      #     variables:
+      #       Namespace: ${{ parameters.environment }}
+      #       HelmChartVersion: $[ stageDependencies.Package.PackageHelm.outputs['helmPublish.HelmChartVersion'] ]
+      #     strategy:
+      #       runOnce:
+      #         deploy:
+      #           steps:
+      #             - checkout: none
+      #             - download: none
+      #             - task: HelmInstaller@1
+      #               displayName: 'Install Helm'
+      #               inputs:
+      #                 helmVersionToInstall: '3.13.0'
+      #             - task: Kubernetes@1
+      #               displayName: 'Login to Kubernetes'
+      #               inputs:
+      #                 connectionType: 'Kubernetes Service Connection'
+      #                 kubernetesServiceEndpoint: ${{ parameters.kubernetesServiceConnection }}
+      #                 command: 'login'
+      #             - task: AzureCLI@2
+      #               displayName: 'Login to ACR for Helm OCI'
+      #               inputs:
+      #                 azureSubscription: ${{ parameters.azureServiceConnection }}
+      #                 scriptType: 'bash'
+      #                 scriptLocation: 'inlineScript'
+      #                 inlineScript: |
+      #                   az acr login --name "${{ parameters.acrName }}"
+      #             - bash: |
+      #                 helm upgrade --install meridian oci://${{ parameters.acrLoginServer }}/helm/meridian-console
+      #               displayName: 'Helm upgrade'
 
       # TODO: Panel website deployment (TBD - Astro? SWA? Azure App Service?)
       # - job: DeployPanel
