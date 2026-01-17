@@ -1,0 +1,21 @@
+parameters:
+  chartName: ''
+  chartPath: ''
+  acrName: ''
+  helmVersion: ''
+  VariableLocation: ''
+  acrServiceConnection: ''
+  deployTimeout: '10m'
+  testTimeout: '5m'
+
+stages:
+- stage: Build
+  displayName: Build & Publish
+  jobs:
+  - template: ../jobs/publish.yml@self
+    parameters:
+      chartName: ${{ parameters.chartName }}
+      chartPath: ${{ parameters.chartPath }}
+      acrName: ${{ parameters.acrName }}
+      helmVersion: ${{ parameters.helmVersion }}
+      acrServiceConnection: ${{ parameters.acrServiceConnection }}
