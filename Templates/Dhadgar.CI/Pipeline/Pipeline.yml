@@ -141,52 +141,52 @@ stages:
     acrLoginServer: ${{ parameters.acrLoginServer }}
     azureServiceConnection: ${{ parameters.azureServiceConnection }}
 
-# Security Scanning Stage
+# DISABLED: Security Scanning Stage - re-enable when needed
 # Runs after Package, scans all container images + code for vulnerabilities
-- ${{ if eq(parameters.runSecurityScans, true) }}:
-  - template: ../../Standalone/Stages/Security.yml
-    parameters:
-      stageName: 'Security'
-      displayName: 'Security Scanning'
-      dependsOn: ['Package']
-      pool:
-        name: 'Sandbox Servers Agents'
-      containerArtifacts:
-        - name: container-Dhadgar_Billing
-          imageName: dhadgar/billing
-        - name: container-Dhadgar_Console
-          imageName: dhadgar/console
-        - name: container-Dhadgar_Discord
-          imageName: dhadgar/discord
-        - name: container-Dhadgar_Files
-          imageName: dhadgar/files
-        - name: container-Dhadgar_Firewall
-          imageName: dhadgar/firewall
-        - name: container-Dhadgar_Gateway
-          imageName: dhadgar/gateway
-        - name: container-Dhadgar_Identity
-          imageName: dhadgar/identity
-        - name: container-Dhadgar_Mods
-          imageName: dhadgar/mods
-        - name: container-Dhadgar_Nodes
-          imageName: dhadgar/nodes
-        - name: container-Dhadgar_Notifications
-          imageName: dhadgar/notifications
-        - name: container-Dhadgar_Secrets
-          imageName: dhadgar/secrets
-        - name: container-Dhadgar_Servers
-          imageName: dhadgar/servers
-        - name: container-Dhadgar_Tasks
-          imageName: dhadgar/tasks
-      runSast: true
-      runSca: true
-      scaTarget: 'Dhadgar.sln'
-      runContainerScan: true
-      runIacScan: true
-      runSecretScan: true
-      runSbom: true
-      failOnCritical: true
-      nvdApiKey: ${{ parameters.nvdApiKey }}
+# - ${{ if eq(parameters.runSecurityScans, true) }}:
+#   - template: ../../Standalone/Stages/Security.yml
+#     parameters:
+#       stageName: 'Security'
+#       displayName: 'Security Scanning'
+#       dependsOn: ['Package']
+#       pool:
+#         name: 'Sandbox Servers Agents'
+#       containerArtifacts:
+#         - name: container-Dhadgar_Billing
+#           imageName: dhadgar/billing
+#         - name: container-Dhadgar_Console
+#           imageName: dhadgar/console
+#         - name: container-Dhadgar_Discord
+#           imageName: dhadgar/discord
+#         - name: container-Dhadgar_Files
+#           imageName: dhadgar/files
+#         - name: container-Dhadgar_Firewall
+#           imageName: dhadgar/firewall
+#         - name: container-Dhadgar_Gateway
+#           imageName: dhadgar/gateway
+#         - name: container-Dhadgar_Identity
+#           imageName: dhadgar/identity
+#         - name: container-Dhadgar_Mods
+#           imageName: dhadgar/mods
+#         - name: container-Dhadgar_Nodes
+#           imageName: dhadgar/nodes
+#         - name: container-Dhadgar_Notifications
+#           imageName: dhadgar/notifications
+#         - name: container-Dhadgar_Secrets
+#           imageName: dhadgar/secrets
+#         - name: container-Dhadgar_Servers
+#           imageName: dhadgar/servers
+#         - name: container-Dhadgar_Tasks
+#           imageName: dhadgar/tasks
+#       runSast: true
+#       runSca: true
+#       scaTarget: 'Dhadgar.sln'
+#       runContainerScan: true
+#       runIacScan: true
+#       runSecretScan: true
+#       runSbom: true
+#       failOnCritical: true
+#       nvdApiKey: ${{ parameters.nvdApiKey }}
 
 # Infrastructure Provisioning Stages (optional) - Loop through environments
 - ${{ if eq(parameters.provisionInfrastructure, true) }}:

@@ -57,19 +57,20 @@ stages:
               service: ${{ svc }}
               buildConfiguration: ${{ parameters.buildConfiguration }}
 
-      # Publish Helm chart to ACR (non-PR only)
-      - ${{ if eq(parameters.publishHelmChart, true) }}:
-        - template: ../Jobs/PackageHelm.yml
-          parameters:
-            chartPath: ${{ parameters.helmChartPath }}
-            chartRoot: ${{ parameters.helmChartRoot }}
-            chartName: ${{ parameters.helmChartName }}
-            acrName: ${{ parameters.acrName }}
-            acrLoginServer: ${{ parameters.acrLoginServer }}
-            azureServiceConnection: ${{ parameters.azureServiceConnection }}
-            helmVersion: ${{ parameters.helmVersion }}
+      # DISABLED: Helm chart publishing - not needed for local dev
+      # - ${{ if eq(parameters.publishHelmChart, true) }}:
+      #   - template: ../Jobs/PackageHelm.yml
+      #     parameters:
+      #       chartPath: ${{ parameters.helmChartPath }}
+      #       chartRoot: ${{ parameters.helmChartRoot }}
+      #       chartName: ${{ parameters.helmChartName }}
+      #       acrName: ${{ parameters.acrName }}
+      #       acrLoginServer: ${{ parameters.acrLoginServer }}
+      #       azureServiceConnection: ${{ parameters.azureServiceConnection }}
+      #       helmVersion: ${{ parameters.helmVersion }}
 
       # Publish compose assets for localdev deploys (non-PR only)
+      # This is the only job that will run in Package stage now
       - ${{ if eq(parameters.publishComposeAssets, true) }}:
         - template: ../Jobs/PackageComposeAssets.yml
           parameters:
