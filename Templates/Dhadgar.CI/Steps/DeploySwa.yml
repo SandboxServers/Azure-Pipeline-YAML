@@ -12,3 +12,6 @@ steps:
     output_location: ${{ parameters.outputLocation }}
     ${{ if ne(parameters.appBuildCommand, '') }}:
       app_build_command: ${{ parameters.appBuildCommand }}
+  env:
+    # Skip .NET detection - these are Astro/Node.js projects with .csproj shims
+    DISABLE_DOTNET_BUILD: true
