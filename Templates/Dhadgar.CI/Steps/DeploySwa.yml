@@ -4,14 +4,25 @@ parameters:
   outputLocation: '_swa_publish/wwwroot'
   appBuildCommand: ''
 steps:
+# Build the app manually to avoid Oryx's .NET 10.0 detection issue
+# Oryx detects csproj files and fails on unsupported .NET versions before
+# running custom build commands, so we build first then skip Oryx's build
+- ${{ if ne(parameters.appBuildCommand, '') }}:
+  - task: Bash@3
+    displayName: 'Build app (npm)'
+    inputs:
+      targetType: inline
+      workingDirectory: ${{ parameters.appLocation }}
+      script: |
+        echo "Building in $(pwd)"
+        ${{ parameters.appBuildCommand }}
+
 - task: AzureStaticWebApp@0
   displayName: 'Deploy to Azure Static Web Apps'
   inputs:
     azure_static_web_apps_api_token: ${{ parameters.apiToken }}
     app_location: ${{ parameters.appLocation }}
     output_location: ${{ parameters.outputLocation }}
-    ${{ if ne(parameters.appBuildCommand, '') }}:
-      app_build_command: ${{ parameters.appBuildCommand }}
-  env:
-    # Skip .NET detection - these are Astro/Node.js projects with .csproj shims
-    DISABLE_DOTNET_BUILD: true
+    # Skip Oryx build entirely - we already built the app above
+    # This avoids the .NET 10.0 unsupported version error from Oryx
+    skip_app_build: true
