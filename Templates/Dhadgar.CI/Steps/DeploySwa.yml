@@ -26,14 +26,17 @@ steps:
         echo "npm version: $(npm --version)"
         ${{ parameters.appBuildCommand }}
         echo "Build complete. Checking output directory..."
-        ls -la ${{ parameters.outputLocation }} || echo "Output directory not found!"
+        ls -la ${{ parameters.outputLocation }}
 
 - task: AzureStaticWebApp@0
   displayName: 'Deploy to Azure Static Web Apps'
   inputs:
     azure_static_web_apps_api_token: ${{ parameters.apiToken }}
-    app_location: ${{ parameters.appLocation }}
-    output_location: ${{ parameters.outputLocation }}
-    # Skip Oryx build entirely - we already built the app above
-    # This avoids the .NET 10.0 unsupported version error from Oryx
-    skip_app_build: true
+    # When skip_app_build is true, app_location must point directly to the built files
+    # SWA ignores output_location when skipping build
+    ${{ if ne(parameters.appBuildCommand, '') }}:
+      app_location: ${{ parameters.appLocation }}/${{ parameters.outputLocation }}
+      skip_app_build: true
+    ${{ else }}:
+      app_location: ${{ parameters.appLocation }}
+      output_location: ${{ parameters.outputLocation }}
