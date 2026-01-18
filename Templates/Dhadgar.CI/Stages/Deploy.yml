@@ -106,9 +106,9 @@ stages:
         - template: ../Steps/DeploySwa.yml
           parameters:
             apiToken: $(Dhadgar_Swa_ApiToken)
-            appLocation: .
+            appLocation: src/Dhadgar.Scope
             outputLocation: _swa_publish/wwwroot
-            appBuildCommand: dotnet publish src/Dhadgar.Scope/Dhadgar.Scope.csproj -c $(BuildConfiguration) -o _swa_publish
+            appBuildCommand: npm install && npm run build
 
       # Static Web Apps - ShoppingCart (all environments)
       - job: DeployShoppingCart
@@ -120,9 +120,9 @@ stages:
         - template: ../Steps/DeploySwa.yml
           parameters:
             apiToken: $(Dhadgar_ShoppingCart_Swa_ApiToken)
-            appLocation: .
+            appLocation: src/Dhadgar.ShoppingCart
             outputLocation: _swa_publish/wwwroot
-            appBuildCommand: dotnet publish src/Dhadgar.ShoppingCart/Dhadgar.ShoppingCart.csproj -c $(BuildConfiguration) -o _swa_publish
+            appBuildCommand: npm install && npm run build
 
       # DISABLED: dev/staging/prod: Helm/Kubernetes Deployment - not using K8s currently
       # - ${{ if ne(parameters.environment, 'localdev') }}:
