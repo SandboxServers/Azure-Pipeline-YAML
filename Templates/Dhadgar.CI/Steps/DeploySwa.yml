@@ -3,19 +3,30 @@ parameters:
   appLocation: '.'
   outputLocation: '_swa_publish/wwwroot'
   appBuildCommand: ''
+  nodeVersion: '20.x'
 steps:
 # Build the app manually to avoid Oryx's .NET 10.0 detection issue
 # Oryx detects csproj files and fails on unsupported .NET versions before
 # running custom build commands, so we build first then skip Oryx's build
 - ${{ if ne(parameters.appBuildCommand, '') }}:
+  - task: NodeTool@0
+    displayName: 'Install Node.js'
+    inputs:
+      versionSpec: ${{ parameters.nodeVersion }}
+
   - task: Bash@3
     displayName: 'Build app (npm)'
     inputs:
       targetType: inline
       workingDirectory: ${{ parameters.appLocation }}
       script: |
+        set -e
         echo "Building in $(pwd)"
+        echo "Node version: $(node --version)"
+        echo "npm version: $(npm --version)"
         ${{ parameters.appBuildCommand }}
+        echo "Build complete. Checking output directory..."
+        ls -la ${{ parameters.outputLocation }} || echo "Output directory not found!"
 
 - task: AzureStaticWebApp@0
   displayName: 'Deploy to Azure Static Web Apps'
