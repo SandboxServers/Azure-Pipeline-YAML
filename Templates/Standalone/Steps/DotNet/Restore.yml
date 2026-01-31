@@ -1,8 +1,13 @@
 parameters:
   projectPath: ''
+  lockedMode: true
 steps:
+# Use --locked-mode in CI for faster restores (skips dependency resolution)
+# Lock files must be committed and up-to-date for this to work
 - task: DotNetCoreCLI@2
   displayName: 'dotnet restore'
   inputs:
     command: 'restore'
     projects: ${{ parameters.projectPath }}
+    ${{ if eq(parameters.lockedMode, true) }}:
+      arguments: '--locked-mode'
