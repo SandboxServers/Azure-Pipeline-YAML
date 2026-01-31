@@ -31,27 +31,10 @@ jobs:
       dotnetSdkVersion: ${{ parameters.dotnetSdkVersion }}
       includePreview: ${{ parameters.includePreview }}
 
-  # NuGet cache disabled - restore is faster than cache download/extract on hosted agents
-
-  # Cache npm dependencies for Node.js projects (Scope, Panel, ShoppingCart, BetterAuth, SharedAuth)
-  # Uses package-lock.json files as cache key - cache is invalidated when dependencies change
-  - task: Cache@2
-    displayName: 'Cache npm packages'
-    inputs:
-      key: 'npm | "$(Agent.OS)" | src/Dhadgar.BetterAuth/package-lock.json | src/Dhadgar.Scope/package-lock.json | src/Dhadgar.ShoppingCart/package-lock.json | src/Dhadgar.Panel/package-lock.json | src/Dhadgar.SharedAuth/package-lock.json'
-      path: |
-        src/Dhadgar.BetterAuth/node_modules
-        src/Dhadgar.Scope/node_modules
-        src/Dhadgar.ShoppingCart/node_modules
-        src/Dhadgar.Panel/node_modules
-        src/Dhadgar.SharedAuth/node_modules
-      restoreKeys: |
-        npm | "$(Agent.OS)"
-      cacheHitVar: NPM_CACHE_RESTORED
+  # Caching disabled - fresh restore/install is faster than cache download on hosted agents
 
   # Pre-install npm dependencies in parallel (runs all 5 npm ci commands concurrently)
   # This is faster than letting MSBuild run them sequentially during the build
-  # Only runs if cache was not restored (cache miss)
   - bash: |
       set -e
       echo "Installing npm dependencies in parallel..."
@@ -68,7 +51,6 @@ jobs:
 
       echo "All npm dependencies installed successfully"
     displayName: 'npm ci (parallel)'
-    condition: and(succeeded(), ne(variables.NPM_CACHE_RESTORED, 'true'))
 
   - template: ../../Standalone/Steps/DotNet/Restore.yml
     parameters:
