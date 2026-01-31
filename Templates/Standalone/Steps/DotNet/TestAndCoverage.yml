@@ -18,6 +18,8 @@ steps:
         $settingsPath = "$(Agent.TempDirectory)/coverlet.runsettings"
         $xml = '<?xml version="1.0" encoding="utf-8"?>'
         $xml += '<RunSettings>'
+        # MaxCpuCount=0 runs test assemblies in parallel using all available cores
+        $xml += '<RunConfiguration><MaxCpuCount>0</MaxCpuCount></RunConfiguration>'
         $xml += '<DataCollectionRunSettings>'
         $xml += '<DataCollectors>'
         $xml += '<DataCollector friendlyName="XPlat Code Coverage">'
@@ -50,6 +52,16 @@ steps:
           --settings "$(Agent.TempDirectory)/coverlet.runsettings"
           -- /m
   - ${{ if ne(parameters.collectCoverage, true) }}:
+    - pwsh: |
+        $settingsPath = "$(Agent.TempDirectory)/parallel.runsettings"
+        $xml = '<?xml version="1.0" encoding="utf-8"?>'
+        $xml += '<RunSettings>'
+        # MaxCpuCount=0 runs test assemblies in parallel using all available cores
+        $xml += '<RunConfiguration><MaxCpuCount>0</MaxCpuCount></RunConfiguration>'
+        $xml += '</RunSettings>'
+        $xml | Set-Content -Path $settingsPath -Encoding UTF8
+        Write-Host "Using parallel runsettings at $settingsPath"
+      displayName: 'Write parallel runsettings'
     - task: DotNetCoreCLI@2
       displayName: 'dotnet test'
       inputs:
@@ -60,7 +72,7 @@ steps:
           -c ${{ parameters.buildConfiguration }}
           --logger "trx"
           --results-directory "${{ parameters.resultsDirectory }}"
-          -- /m
+          --settings "$(Agent.TempDirectory)/parallel.runsettings"
 - task: PublishTestResults@2
   displayName: 'Publish test results'
   condition: and(succeededOrFailed(), ne('${{ parameters.testProjectPath }}', ''))
