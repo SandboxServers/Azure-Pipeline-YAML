@@ -29,7 +29,6 @@ stages:
       workspace:
         clean: all
       variables:
-        NUGET_PACKAGES: $(Pipeline.Workspace)/.nuget/packages
         TestResultsDir: $(Agent.TempDirectory)/testresults
       steps:
       - checkout: self
@@ -39,9 +38,7 @@ stages:
           dotnetSdkVersion: ${{ parameters.dotnetSdkVersion }}
           includePreview: ${{ parameters.includePreview }}
 
-      - template: ../../Standalone/Steps/DotNet/CacheNuGet.yml
-        parameters:
-          keySuffix: ${{ coalesce(parameters.testTargetPath, 'all-tests') }}
+      # Caching disabled - fresh restore is faster than cache download on hosted agents
 
       - ${{ if ne(parameters.testTargetPath, '') }}:
         - template: ../../Standalone/Steps/DotNet/Restore.yml
