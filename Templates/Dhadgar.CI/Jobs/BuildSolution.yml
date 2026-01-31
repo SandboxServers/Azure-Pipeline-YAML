@@ -56,7 +56,7 @@ jobs:
     parameters:
       projectPath: ${{ parameters.solutionPath }}
 
-  # Build entire solution first (fast, establishes build graph)
+  # Build entire solution with max parallelism
   - task: DotNetCoreCLI@2
     displayName: 'Build solution'
     inputs:
@@ -64,6 +64,7 @@ jobs:
       projects: ${{ parameters.solutionPath }}
       arguments: >
         -c ${{ parameters.buildConfiguration }}
+        -m
         /p:SkipGlobalToolInstall=true
 
   # Publish and upload artifacts for each deployable project (interleaved for clarity)
