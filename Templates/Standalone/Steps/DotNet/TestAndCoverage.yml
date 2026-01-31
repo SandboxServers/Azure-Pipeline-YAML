@@ -48,6 +48,7 @@ steps:
           --results-directory "${{ parameters.resultsDirectory }}"
           --collect "XPlat Code Coverage"
           --settings "$(Agent.TempDirectory)/coverlet.runsettings"
+          -- /m
   - ${{ if ne(parameters.collectCoverage, true) }}:
     - task: DotNetCoreCLI@2
       displayName: 'dotnet test'
@@ -59,6 +60,7 @@ steps:
           -c ${{ parameters.buildConfiguration }}
           --logger "trx"
           --results-directory "${{ parameters.resultsDirectory }}"
+          -- /m
 - task: PublishTestResults@2
   displayName: 'Publish test results'
   condition: and(succeededOrFailed(), ne('${{ parameters.testProjectPath }}', ''))
