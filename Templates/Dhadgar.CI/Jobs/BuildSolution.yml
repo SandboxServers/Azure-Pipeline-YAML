@@ -22,7 +22,6 @@ jobs:
   workspace:
     clean: all
   variables:
-    NUGET_PACKAGES: $(Pipeline.Workspace)/.nuget/packages
     BuildOutputDir: $(Build.SourcesDirectory)/artifacts/publish
   steps:
   - checkout: self
@@ -32,9 +31,7 @@ jobs:
       dotnetSdkVersion: ${{ parameters.dotnetSdkVersion }}
       includePreview: ${{ parameters.includePreview }}
 
-  - template: ../../Standalone/Steps/DotNet/CacheNuGet.yml
-    parameters:
-      keySuffix: ${{ parameters.solutionPath }}
+  # NuGet cache disabled - restore is faster than cache download/extract on hosted agents
 
   # Cache npm dependencies for Node.js projects (Scope, Panel, ShoppingCart, BetterAuth, SharedAuth)
   # Uses package-lock.json files as cache key - cache is invalidated when dependencies change
