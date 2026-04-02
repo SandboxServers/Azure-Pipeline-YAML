@@ -1,0 +1,55 @@
+parameters:
+  chartName: ''
+  chartPath: ''
+  acrName: ''
+
+steps:
+- bash: |
+    set -e  # Exit on error
+
+    # Check if Chart.yaml exists
+    if [ ! -f "${{ parameters.chartPath }}/Chart.yaml" ]; then
+      echo "❌ Error: Chart.yaml not found at ${{ parameters.chartPath }}/Chart.yaml"
+      exit 1
+    fi
+
+    CHART_VERSION=$(grep '^version:' ${{ parameters.chartPath }}/Chart.yaml | awk '{print $2}')
+    CHART_FILE="${{ parameters.chartName }}-${CHART_VERSION}.tgz"
+
+    # Check if chart package exists
+    if [ ! -f "$CHART_FILE" ]; then
+      echo "❌ Error: Chart package not found: $CHART_FILE"
+      exit 1
+    fi
+
+    echo "=== Publishing Chart ==="
+    echo "Chart: ${{ parameters.chartName }}"
+    echo "Version: $CHART_VERSION"
+    echo "Registry: $ACR_LOGIN_SERVER"
+    echo "File: $CHART_FILE"
+    echo "========================"
+
+    # Push to ACR with retry logic
+    MAX_RETRIES=3
+    RETRY_COUNT=0
+
+    while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+      if helm push "$CHART_FILE" oci://$ACR_LOGIN_SERVER/helm; then
+        echo "✅ Successfully published ${{ parameters.chartName }}:${CHART_VERSION} to ACR"
+        echo "##vso[task.setvariable variable=CHART_VERSION;isOutput=true]$CHART_VERSION"
+        exit 0
+      else
+        RETRY_COUNT=$((RETRY_COUNT + 1))
+        if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+          echo "⚠️ Publish failed (attempt $RETRY_COUNT/$MAX_RETRIES), retrying in 5 seconds..."
+          sleep 5
+        fi
+      fi
+    done
+
+    echo "❌ Failed to publish chart after $MAX_RETRIES attempts"
+    exit 1
+  displayName: 'Push Helm chart to ACR'
+  env:
+    HELM_EXPERIMENTAL_OCI: 1
+    ACR_LOGIN_SERVER: $[ dependencies.publish_helm.outputs['acrLogin.ACR_LOGIN_SERVER'] ]

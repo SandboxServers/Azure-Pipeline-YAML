@@ -1,0 +1,12 @@
+variables:
+  environmentName: dev
+  kubernetesNamespace: meridian-dev
+  releaseName: meridian-console-dev
+
+  # Dev environment overrides
+  valuesFile: values-dev.yaml
+
+  # Resource limits for dev
+  resources:
+    cpu: 500m
+    memory: 512Mi

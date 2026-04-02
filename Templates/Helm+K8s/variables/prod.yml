@@ -1,0 +1,12 @@
+variables:
+  environmentName: prod
+  kubernetesNamespace: meridian-prod
+  releaseName: meridian-console
+
+  # Prod environment overrides
+  valuesFile: values-prod.yaml
+
+  # Resource limits for prod
+  resources:
+    cpu: 1000m
+    memory: 1Gi
