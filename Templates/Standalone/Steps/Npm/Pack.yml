@@ -87,15 +87,15 @@ steps:
         throw "Packed archive not found: $archivePath"
       }
 
-      $releaseNotes = @"
-# $(PackageName) $(PackageVersion)
-
-- Package: `$(PackageName)`
-- Version: `$(PackageVersion)`
-- Git ref: `$(Build.SourceBranch)`
-- Commit: `$(Build.SourceVersion)`
-- Build: [$(Build.BuildNumber)]($(System.CollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId))
-"@
+      $releaseNotes = @(
+        "# $(PackageName) $(PackageVersion)",
+        "",
+        "- Package: `$(PackageName)`",
+        "- Version: `$(PackageVersion)`",
+        "- Git ref: `$(Build.SourceBranch)`",
+        "- Commit: `$(Build.SourceVersion)`",
+        "- Build: [$(Build.BuildNumber)]($(System.CollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId))"
+      ) -join [Environment]::NewLine
 
       Set-Content -LiteralPath $releaseNotesPath -Value $releaseNotes -Encoding UTF8
 
