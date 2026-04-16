@@ -1,0 +1,123 @@
+parameters:
+  - name: vmImage
+    type: string
+    default: 'ubuntu-latest'
+  - name: globalVariableTemplatePath
+    type: string
+    default: '/pipeline/variables/global.yml'
+  - name: buildVariableTemplatePath
+    type: string
+    default: '/pipeline/variables/build.yml'
+  - name: preBuildSteps
+    type: stepList
+    default: []
+  - name: postBuildSteps
+    type: stepList
+    default: []
+
+jobs:
+  - job: BuildPackage
+    displayName: 'Build, Test, and Pack'
+    pool:
+      vmImage: ${{ parameters.vmImage }}
+    variables:
+      - template: ${{ parameters.globalVariableTemplatePath }}@self
+      - template: ${{ parameters.buildVariableTemplatePath }}@self
+    steps:
+      - checkout: self
+        fetchDepth: 0
+        fetchTags: true
+
+      - download: none
+
+      - ${{ parameters.preBuildSteps }}
+
+      - template: ../../Standalone/Steps/Node/UseNode.yml
+        parameters:
+          version: '$(nodeVersion)'
+          displayName: 'Use Node.js $(nodeVersion)'
+
+      - template: ../../Standalone/Steps/Cache/Restore.yml
+        parameters:
+          key: 'npm | "$(Agent.OS)" | $(npmCacheKeyFile)'
+          restoreKeys: |
+            npm | "$(Agent.OS)"
+            npm
+          path: '$(npmCacheDirectory)'
+          displayName: 'Restore npm cache'
+          condition: and(succeeded(), eq(variables['enableNpmCache'], 'true'))
+
+      - template: ../../Standalone/Steps/Npm/ResolvePackageMetadata.yml
+        parameters:
+          packageJsonPath: '$(Build.SourcesDirectory)/$(packageJsonPath)'
+          releaseTitleFormat: '$(releaseTitleFormat)'
+          releaseTagFormat: '$(releaseTagFormat)'
+
+      - template: ../../Standalone/Steps/Npm/Run.yml
+        parameters:
+          displayName: 'Install dependencies (npm ci)'
+          workingDirectory: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)'
+          taskCommand: 'ci'
+          verbose: true
+          env:
+            NPM_CONFIG_CACHE: '$(npmCacheDirectory)'
+          condition: and(succeeded(), eq(variables['npmInstallCommand'], 'ci'))
+
+      - template: ../../Standalone/Steps/Npm/Run.yml
+        parameters:
+          displayName: 'Install dependencies (npm install)'
+          workingDirectory: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)'
+          taskCommand: 'install'
+          verbose: true
+          env:
+            NPM_CONFIG_CACHE: '$(npmCacheDirectory)'
+          condition: and(succeeded(), eq(variables['npmInstallCommand'], 'install'))
+
+      - template: ../../Standalone/Steps/Npm/Run.yml
+        parameters:
+          displayName: 'Install dependencies (custom npm command)'
+          workingDirectory: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)'
+          taskCommand: 'custom'
+          customCommand: '$(npmInstallCustomCommand)'
+          env:
+            NPM_CONFIG_CACHE: '$(npmCacheDirectory)'
+          condition: and(succeeded(), eq(variables['npmInstallCommand'], 'custom'))
+
+      - template: ../../Standalone/Steps/Npm/Run.yml
+        parameters:
+          displayName: 'Build package'
+          workingDirectory: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)'
+          taskCommand: 'custom'
+          customCommand: '$(npmBuildCommand)'
+          env:
+            NPM_CONFIG_CACHE: '$(npmCacheDirectory)'
+          condition: and(succeeded(), ne(variables['npmBuildCommand'], ''))
+
+      - template: ../../Standalone/Steps/Npm/Run.yml
+        parameters:
+          displayName: 'Run tests'
+          workingDirectory: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)'
+          taskCommand: 'custom'
+          customCommand: '$(npmTestCommand)'
+          env:
+            NPM_CONFIG_CACHE: '$(npmCacheDirectory)'
+          condition: and(succeeded(), ne(variables['npmTestCommand'], ''))
+
+      - template: ../../Standalone/Steps/Npm/Pack.yml
+        parameters:
+          workingDirectory: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)'
+          outputDirectory: '$(Build.ArtifactStagingDirectory)/$(packageArtifactName)'
+          releaseNotesPath: '$(Build.ArtifactStagingDirectory)/$(packageArtifactName)/$(releaseNotesFileName)'
+          manifestPath: '$(Build.ArtifactStagingDirectory)/$(packageArtifactName)/$(packageManifestFileName)'
+          extraArgs: '$(npmPackArgs)'
+          dryRun: '$(npmPackDryRun)'
+          ignoreScripts: '$(npmPackIgnoreScripts)'
+          includeManifest: '$(includePackageManifest)'
+
+      - template: ../../Standalone/Steps/Artifacts/PublishPipelineArtifact.yml
+        parameters:
+          targetPath: '$(Build.ArtifactStagingDirectory)/$(packageArtifactName)'
+          artifactName: '$(packageArtifactName)'
+          displayName: 'Publish packaged artifact'
+
+      - ${{ parameters.postBuildSteps }}

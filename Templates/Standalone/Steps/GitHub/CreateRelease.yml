@@ -1,0 +1,106 @@
+parameters:
+  - name: gitHubConnection
+    type: string
+    default: '$(githubServiceConnection)'
+  - name: repositoryName
+    type: string
+    default: '$(Build.Repository.Name)'
+  - name: action
+    type: string
+    default: 'create'
+  - name: target
+    type: string
+    default: '$(Build.SourceVersion)'
+  - name: tagSource
+    type: string
+    default: 'gitTag'
+  - name: tagPattern
+    type: string
+    default: ''
+  - name: tag
+    type: string
+    default: ''
+  - name: title
+    type: string
+    default: ''
+  - name: releaseNotesSource
+    type: string
+    default: 'filePath'
+  - name: releaseNotesFilePath
+    type: string
+    default: ''
+  - name: releaseNotesInline
+    type: string
+    default: ''
+  - name: assets
+    type: string
+    default: '$(Build.ArtifactStagingDirectory)/*'
+  - name: assetUploadMode
+    type: string
+    default: 'delete'
+  - name: isDraft
+    type: string
+    default: 'false'
+  - name: isPreRelease
+    type: string
+    default: 'false'
+  - name: makeLatest
+    type: string
+    default: 'true'
+  - name: addChangeLog
+    type: string
+    default: 'true'
+  - name: changeLogCompareToRelease
+    type: string
+    default: 'lastFullRelease'
+  - name: changeLogCompareToReleaseTag
+    type: string
+    default: ''
+  - name: changeLogType
+    type: string
+    default: 'commitBased'
+  - name: changeLogLabels
+    type: string
+    default: ''
+  - name: displayName
+    type: string
+    default: 'Create GitHub release'
+  - name: condition
+    type: string
+    default: 'succeeded()'
+
+steps:
+  - task: GitHubRelease@1
+    displayName: ${{ parameters.displayName }}
+    condition: ${{ parameters.condition }}
+    inputs:
+      gitHubConnection: ${{ parameters.gitHubConnection }}
+      repositoryName: ${{ parameters.repositoryName }}
+      action: ${{ parameters.action }}
+      ${{ if or(eq(parameters.action, 'create'), eq(parameters.action, 'edit')) }}:
+        target: ${{ parameters.target }}
+        title: ${{ parameters.title }}
+        releaseNotesSource: ${{ parameters.releaseNotesSource }}
+        assets: ${{ parameters.assets }}
+        isDraft: ${{ parameters.isDraft }}
+        isPreRelease: ${{ parameters.isPreRelease }}
+        makeLatest: ${{ parameters.makeLatest }}
+        addChangeLog: ${{ parameters.addChangeLog }}
+        changeLogCompareToRelease: ${{ parameters.changeLogCompareToRelease }}
+        changeLogType: ${{ parameters.changeLogType }}
+      ${{ if eq(parameters.action, 'create') }}:
+        tagSource: ${{ parameters.tagSource }}
+      ${{ if or(eq(parameters.action, 'edit'), eq(parameters.action, 'delete'), eq(parameters.tagSource, 'userSpecifiedTag')) }}:
+        tag: ${{ parameters.tag }}
+      ${{ if and(eq(parameters.action, 'create'), eq(parameters.tagSource, 'gitTag'), ne(parameters.tagPattern, '')) }}:
+        tagPattern: ${{ parameters.tagPattern }}
+      ${{ if and(or(eq(parameters.action, 'create'), eq(parameters.action, 'edit')), eq(parameters.releaseNotesSource, 'filePath')) }}:
+        releaseNotesFilePath: ${{ parameters.releaseNotesFilePath }}
+      ${{ if and(or(eq(parameters.action, 'create'), eq(parameters.action, 'edit')), eq(parameters.releaseNotesSource, 'inline')) }}:
+        releaseNotesInline: ${{ parameters.releaseNotesInline }}
+      ${{ if eq(parameters.action, 'edit') }}:
+        assetUploadMode: ${{ parameters.assetUploadMode }}
+      ${{ if and(or(eq(parameters.action, 'create'), eq(parameters.action, 'edit')), eq(parameters.addChangeLog, 'true'), eq(parameters.changeLogCompareToRelease, 'lastNonDraftReleaseByTag')) }}:
+        changeLogCompareToReleaseTag: ${{ parameters.changeLogCompareToReleaseTag }}
+      ${{ if and(or(eq(parameters.action, 'create'), eq(parameters.action, 'edit')), eq(parameters.addChangeLog, 'true'), eq(parameters.changeLogType, 'issueBased'), ne(parameters.changeLogLabels, '')) }}:
+        changeLogLabels: ${{ parameters.changeLogLabels }}

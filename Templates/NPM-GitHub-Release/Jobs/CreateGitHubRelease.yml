@@ -1,0 +1,83 @@
+parameters:
+  - name: vmImage
+    type: string
+    default: 'ubuntu-latest'
+  - name: environmentName
+    type: string
+    default: 'dev'
+  - name: globalVariableTemplatePath
+    type: string
+    default: '/pipeline/variables/global.yml'
+  - name: environmentVariableTemplatePath
+    type: string
+    default: '/pipeline/variables/dev.yml'
+  - name: preReleaseSteps
+    type: stepList
+    default: []
+  - name: postReleaseSteps
+    type: stepList
+    default: []
+
+jobs:
+  - job: ${{ format('CreateGitHubRelease_{0}', parameters.environmentName) }}
+    displayName: ${{ format('Publish GitHub Release ({0})', parameters.environmentName) }}
+    pool:
+      vmImage: ${{ parameters.vmImage }}
+    variables:
+      - template: ${{ parameters.globalVariableTemplatePath }}@self
+      - template: ${{ parameters.environmentVariableTemplatePath }}@self
+    condition: and(succeeded(), or(ne(variables['releaseFromTagOnly'], 'true'), startsWith(variables['Build.SourceBranch'], 'refs/tags/')))
+    steps:
+      - checkout: self
+        fetchDepth: 0
+        fetchTags: true
+
+      - download: none
+
+      - ${{ parameters.preReleaseSteps }}
+
+      - template: ../../Standalone/Steps/Npm/ResolvePackageMetadata.yml
+        parameters:
+          packageJsonPath: '$(Build.SourcesDirectory)/$(packageJsonPath)'
+          releaseTitleFormat: '$(releaseTitleFormat)'
+          releaseTagFormat: '$(releaseTagFormat)'
+
+      - template: ../../Standalone/Steps/Artifacts/DownloadPipelineArtifact.yml
+        parameters:
+          artifact: '$(packageArtifactName)'
+          path: '$(Pipeline.Workspace)/$(packageArtifactName)'
+          displayName: 'Download packaged artifact'
+
+      - template: ../../Standalone/Steps/GitHub/PreviewRelease.yml
+        parameters:
+          repositoryName: '$(githubRepositoryName)'
+          title: '$(ReleaseTitle)'
+          tag: '$(ReleaseTag)'
+          target: '$(Build.SourceVersion)'
+          assets: '$(Pipeline.Workspace)/$(packageArtifactName)/$(packageOutputGlob)'
+          releaseNotesFilePath: '$(Pipeline.Workspace)/$(packageArtifactName)/$(releaseNotesFileName)'
+          condition: and(succeeded(), eq(variables['gitHubReleaseDryRun'], 'true'))
+
+      - template: ../../Standalone/Steps/GitHub/CreateRelease.yml
+        parameters:
+          gitHubConnection: '$(githubServiceConnection)'
+          repositoryName: '$(githubRepositoryName)'
+          target: '$(Build.SourceVersion)'
+          tagSource: 'gitTag'
+          tagPattern: '$(gitTagPattern)'
+          tag: '$(ReleaseTag)'
+          title: '$(ReleaseTitle)'
+          releaseNotesSource: 'filePath'
+          releaseNotesFilePath: '$(Pipeline.Workspace)/$(packageArtifactName)/$(releaseNotesFileName)'
+          assets: '$(Pipeline.Workspace)/$(packageArtifactName)/$(packageOutputGlob)'
+          isDraft: '$(gitHubReleaseDraft)'
+          isPreRelease: '$(gitHubReleasePreRelease)'
+          makeLatest: '$(gitHubReleaseMakeLatest)'
+          addChangeLog: '$(gitHubReleaseAddChangeLog)'
+          changeLogCompareToRelease: '$(gitHubReleaseChangeLogCompareTo)'
+          changeLogCompareToReleaseTag: '$(gitHubReleaseChangeLogCompareToReleaseTag)'
+          changeLogType: '$(gitHubReleaseChangeLogType)'
+          changeLogLabels: '$(gitHubReleaseChangeLogLabels)'
+          condition: and(succeeded(), ne(variables['gitHubReleaseDryRun'], 'true'))
+
+      - ${{ parameters.postReleaseSteps }}

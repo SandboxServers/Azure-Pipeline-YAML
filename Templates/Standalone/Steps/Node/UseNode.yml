@@ -1,0 +1,25 @@
+parameters:
+  - name: version
+    type: string
+    default: '20.x'
+  - name: checkLatest
+    type: boolean
+    default: false
+  - name: retryCountOnDownloadFails
+    type: string
+    default: '5'
+  - name: delayBetweenRetries
+    type: string
+    default: '1000'
+  - name: displayName
+    type: string
+    default: 'Use Node.js'
+
+steps:
+  - task: UseNode@1
+    displayName: ${{ parameters.displayName }}
+    inputs:
+      version: ${{ parameters.version }}
+      checkLatest: ${{ parameters.checkLatest }}
+      retryCountOnDownloadFails: ${{ parameters.retryCountOnDownloadFails }}
+      delayBetweenRetries: ${{ parameters.delayBetweenRetries }}

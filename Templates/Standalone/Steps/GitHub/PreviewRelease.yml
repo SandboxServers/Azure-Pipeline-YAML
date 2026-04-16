@@ -1,0 +1,41 @@
+parameters:
+  - name: title
+    type: string
+    default: '$(ReleaseTitle)'
+  - name: repositoryName
+    type: string
+    default: '$(Build.Repository.Name)'
+  - name: tag
+    type: string
+    default: '$(ReleaseTag)'
+  - name: target
+    type: string
+    default: '$(Build.SourceVersion)'
+  - name: assets
+    type: string
+    default: ''
+  - name: releaseNotesFilePath
+    type: string
+    default: ''
+  - name: displayName
+    type: string
+    default: 'Preview GitHub release'
+  - name: condition
+    type: string
+    default: 'succeeded()'
+
+steps:
+  - pwsh: |
+      $preview = @"
+      GitHub release preview
+      Repository: ${{ parameters.repositoryName }}
+      Title: ${{ parameters.title }}
+      Tag: ${{ parameters.tag }}
+      Target: ${{ parameters.target }}
+      Assets: ${{ parameters.assets }}
+      Release notes: ${{ parameters.releaseNotesFilePath }}
+      "@
+
+      Write-Host $preview
+    displayName: ${{ parameters.displayName }}
+    condition: ${{ parameters.condition }}

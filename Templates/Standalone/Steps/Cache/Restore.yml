@@ -1,0 +1,31 @@
+parameters:
+  - name: key
+    type: string
+    default: 'cache | "$(Agent.OS)"'
+  - name: restoreKeys
+    type: string
+    default: |
+      cache | "$(Agent.OS)"
+      cache
+  - name: path
+    type: string
+    default: '$(Pipeline.Workspace)/.cache'
+  - name: cacheHitVar
+    type: string
+    default: 'CACHE_RESTORED'
+  - name: displayName
+    type: string
+    default: 'Restore cache'
+  - name: condition
+    type: string
+    default: 'succeeded()'
+
+steps:
+  - task: Cache@2
+    displayName: ${{ parameters.displayName }}
+    condition: ${{ parameters.condition }}
+    inputs:
+      key: ${{ parameters.key }}
+      restoreKeys: ${{ parameters.restoreKeys }}
+      path: ${{ parameters.path }}
+      cacheHitVar: ${{ parameters.cacheHitVar }}

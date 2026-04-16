@@ -1,0 +1,70 @@
+parameters:
+  - name: taskCommand
+    type: string
+    default: 'custom'
+  - name: customCommand
+    type: string
+    default: ''
+  - name: workingDirectory
+    type: string
+    default: '$(Build.SourcesDirectory)'
+  - name: displayName
+    type: string
+    default: 'Run npm command'
+  - name: condition
+    type: string
+    default: 'succeeded()'
+  - name: verbose
+    type: boolean
+    default: false
+  - name: customRegistry
+    type: string
+    default: 'useNpmrc'
+  - name: customFeed
+    type: string
+    default: ''
+  - name: customEndpoint
+    type: string
+    default: ''
+  - name: publishRegistry
+    type: string
+    default: 'useExternalRegistry'
+  - name: publishFeed
+    type: string
+    default: ''
+  - name: publishPackageMetadata
+    type: boolean
+    default: true
+  - name: publishEndpoint
+    type: string
+    default: ''
+  - name: env
+    type: object
+    default: {}
+
+steps:
+  - task: Npm@1
+    displayName: ${{ parameters.displayName }}
+    condition: ${{ parameters.condition }}
+    inputs:
+      command: ${{ parameters.taskCommand }}
+      workingDir: ${{ parameters.workingDirectory }}
+      ${{ if or(eq(parameters.taskCommand, 'install'), eq(parameters.taskCommand, 'ci'), eq(parameters.taskCommand, 'publish')) }}:
+        verbose: ${{ parameters.verbose }}
+      ${{ if eq(parameters.taskCommand, 'custom') }}:
+        customCommand: ${{ parameters.customCommand }}
+      ${{ if or(eq(parameters.taskCommand, 'install'), eq(parameters.taskCommand, 'ci'), eq(parameters.taskCommand, 'custom')) }}:
+        customRegistry: ${{ parameters.customRegistry }}
+      ${{ if and(or(eq(parameters.taskCommand, 'install'), eq(parameters.taskCommand, 'ci'), eq(parameters.taskCommand, 'custom')), eq(parameters.customRegistry, 'useFeed')) }}:
+        customFeed: ${{ parameters.customFeed }}
+      ${{ if and(or(eq(parameters.taskCommand, 'install'), eq(parameters.taskCommand, 'ci'), eq(parameters.taskCommand, 'custom')), eq(parameters.customRegistry, 'useNpmrc'), ne(parameters.customEndpoint, '')) }}:
+        customEndpoint: ${{ parameters.customEndpoint }}
+      ${{ if eq(parameters.taskCommand, 'publish') }}:
+        publishRegistry: ${{ parameters.publishRegistry }}
+        publishPackageMetadata: ${{ parameters.publishPackageMetadata }}
+      ${{ if and(eq(parameters.taskCommand, 'publish'), eq(parameters.publishRegistry, 'useFeed')) }}:
+        publishFeed: ${{ parameters.publishFeed }}
+      ${{ if and(eq(parameters.taskCommand, 'publish'), eq(parameters.publishRegistry, 'useExternalRegistry'), ne(parameters.publishEndpoint, '')) }}:
+        publishEndpoint: ${{ parameters.publishEndpoint }}
+    env:
+      ${{ insert }}: ${{ parameters.env }}

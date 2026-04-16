@@ -1,0 +1,57 @@
+parameters:
+  - name: globalVariableTemplatePath
+    type: string
+    default: '/pipeline/variables/global.yml'
+  - name: buildVariableTemplatePath
+    type: string
+    default: '/pipeline/variables/build.yml'
+  - name: environmentVariableTemplateDirectory
+    type: string
+    default: '/pipeline/variables'
+  - name: vmImage
+    type: string
+    default: 'ubuntu-latest'
+  - name: environments
+    type: object
+    default:
+      - dev
+  - name: buildStageName
+    type: string
+    default: 'Build'
+  - name: releaseStageName
+    type: string
+    default: 'Release'
+  - name: preBuildSteps
+    type: stepList
+    default: []
+  - name: postBuildSteps
+    type: stepList
+    default: []
+  - name: preReleaseSteps
+    type: stepList
+    default: []
+  - name: postReleaseSteps
+    type: stepList
+    default: []
+
+stages:
+  - template: ../Stages/Build.yml
+    parameters:
+      stageName: ${{ parameters.buildStageName }}
+      vmImage: ${{ parameters.vmImage }}
+      globalVariableTemplatePath: ${{ parameters.globalVariableTemplatePath }}
+      buildVariableTemplatePath: ${{ parameters.buildVariableTemplatePath }}
+      preBuildSteps: ${{ parameters.preBuildSteps }}
+      postBuildSteps: ${{ parameters.postBuildSteps }}
+
+  - template: ../Stages/Release.yml
+    parameters:
+      stageName: ${{ parameters.releaseStageName }}
+      dependsOn:
+        - ${{ parameters.buildStageName }}
+      vmImage: ${{ parameters.vmImage }}
+      globalVariableTemplatePath: ${{ parameters.globalVariableTemplatePath }}
+      environmentVariableTemplateDirectory: ${{ parameters.environmentVariableTemplateDirectory }}
+      environments: ${{ parameters.environments }}
+      preReleaseSteps: ${{ parameters.preReleaseSteps }}
+      postReleaseSteps: ${{ parameters.postReleaseSteps }}

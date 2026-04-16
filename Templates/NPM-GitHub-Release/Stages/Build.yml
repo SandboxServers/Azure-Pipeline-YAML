@@ -1,0 +1,31 @@
+parameters:
+  - name: stageName
+    type: string
+    default: 'Build'
+  - name: vmImage
+    type: string
+    default: 'ubuntu-latest'
+  - name: globalVariableTemplatePath
+    type: string
+    default: '/pipeline/variables/global.yml'
+  - name: buildVariableTemplatePath
+    type: string
+    default: '/pipeline/variables/build.yml'
+  - name: preBuildSteps
+    type: stepList
+    default: []
+  - name: postBuildSteps
+    type: stepList
+    default: []
+
+stages:
+  - stage: ${{ parameters.stageName }}
+    displayName: 'Build & Pack NPM App'
+    jobs:
+      - template: ../Jobs/BuildPackage.yml
+        parameters:
+          vmImage: ${{ parameters.vmImage }}
+          globalVariableTemplatePath: ${{ parameters.globalVariableTemplatePath }}
+          buildVariableTemplatePath: ${{ parameters.buildVariableTemplatePath }}
+          preBuildSteps: ${{ parameters.preBuildSteps }}
+          postBuildSteps: ${{ parameters.postBuildSteps }}

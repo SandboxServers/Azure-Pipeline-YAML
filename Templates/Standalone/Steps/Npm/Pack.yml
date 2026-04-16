@@ -1,0 +1,129 @@
+parameters:
+  - name: workingDirectory
+    type: string
+    default: '$(Build.SourcesDirectory)'
+  - name: outputDirectory
+    type: string
+    default: '$(Build.ArtifactStagingDirectory)'
+  - name: releaseNotesPath
+    type: string
+    default: '$(Build.ArtifactStagingDirectory)/release-notes.md'
+  - name: dryRun
+    type: string
+    default: 'false'
+  - name: ignoreScripts
+    type: string
+    default: 'false'
+  - name: workspace
+    type: string
+    default: ''
+  - name: extraArgs
+    type: string
+    default: ''
+  - name: manifestPath
+    type: string
+    default: '$(Build.ArtifactStagingDirectory)/package-manifest.json'
+  - name: includeManifest
+    type: string
+    default: 'true'
+  - name: displayName
+    type: string
+    default: 'Pack npm artifact'
+
+steps:
+  - pwsh: |
+      $workingDirectory = "${{ parameters.workingDirectory }}"
+      $outputDirectory = "${{ parameters.outputDirectory }}"
+      $releaseNotesPath = "${{ parameters.releaseNotesPath }}"
+      $manifestPath = "${{ parameters.manifestPath }}"
+      $workspace = "${{ parameters.workspace }}"
+      $extraArgs = "${{ parameters.extraArgs }}"
+
+      New-Item -ItemType Directory -Force -Path $outputDirectory | Out-Null
+      New-Item -ItemType Directory -Force -Path (Split-Path -Parent $releaseNotesPath) | Out-Null
+      if ('${{ parameters.includeManifest }}' -eq 'True') {
+        New-Item -ItemType Directory -Force -Path (Split-Path -Parent $manifestPath) | Out-Null
+      }
+
+      $arguments = @('pack', '--json', '--pack-destination', $outputDirectory)
+      if ('${{ parameters.dryRun }}'.ToLowerInvariant() -eq 'true') {
+        $arguments += '--dry-run'
+      }
+      if ('${{ parameters.ignoreScripts }}'.ToLowerInvariant() -eq 'true') {
+        $arguments += '--ignore-scripts'
+      }
+      if (-not [string]::IsNullOrWhiteSpace($workspace)) {
+        $arguments += @('--workspace', $workspace)
+      }
+      if (-not [string]::IsNullOrWhiteSpace($extraArgs)) {
+        $arguments += $extraArgs.Split(' ', [System.StringSplitOptions]::RemoveEmptyEntries)
+      }
+
+      Push-Location $workingDirectory
+      try {
+        $packOutput = npm @arguments 2>&1
+        if ($LASTEXITCODE -ne 0) {
+          $packOutput | ForEach-Object { Write-Host $_ }
+          throw "npm pack failed with exit code $LASTEXITCODE"
+        }
+      }
+      finally {
+        Pop-Location
+      }
+
+      $packJson = ($packOutput -join [Environment]::NewLine) | ConvertFrom-Json
+      if ($packJson -isnot [System.Array]) {
+        $packJson = @($packJson)
+      }
+
+      if ($packJson.Count -lt 1 -or [string]::IsNullOrWhiteSpace([string]$packJson[0].filename)) {
+        throw "npm pack did not return a filename."
+      }
+
+      $archiveName = [string]$packJson[0].filename
+      $archivePath = Join-Path $outputDirectory $archiveName
+
+      if (-not ('${{ parameters.dryRun }}'.ToLowerInvariant() -eq 'true') -and -not (Test-Path -LiteralPath $archivePath)) {
+        throw "Packed archive not found: $archivePath"
+      }
+
+      $releaseNotes = @"
+# $(PackageName) $(PackageVersion)
+
+- Package: `$(PackageName)`
+- Version: `$(PackageVersion)`
+- Git ref: `$(Build.SourceBranch)`
+- Commit: `$(Build.SourceVersion)`
+- Build: [$(Build.BuildNumber)]($(System.CollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId))
+"@
+
+      Set-Content -LiteralPath $releaseNotesPath -Value $releaseNotes -Encoding UTF8
+
+      if ('${{ parameters.includeManifest }}'.ToLowerInvariant() -eq 'true') {
+        $manifest = [ordered]@{
+          packageName = "$(PackageName)"
+          packageVersion = "$(PackageVersion)"
+          releaseTitle = "$(ReleaseTitle)"
+          releaseTag = "$(ReleaseTag)"
+          archiveName = $archiveName
+          archivePath = $archivePath
+          outputDirectory = $outputDirectory
+          sourceBranch = "$(Build.SourceBranch)"
+          sourceVersion = "$(Build.SourceVersion)"
+          buildId = "$(Build.BuildId)"
+          buildNumber = "$(Build.BuildNumber)"
+          isDryRun = ('${{ parameters.dryRun }}'.ToLowerInvariant() -eq 'true')
+          workspace = $workspace
+        } | ConvertTo-Json -Depth 5
+
+        Set-Content -LiteralPath $manifestPath -Value $manifest -Encoding UTF8
+      }
+
+      Write-Host "Archive name: $archiveName"
+      if (-not ('${{ parameters.dryRun }}'.ToLowerInvariant() -eq 'true')) {
+        Write-Host "Archive path: $archivePath"
+      }
+
+      Write-Host "##vso[task.setvariable variable=PackageArchiveName]$archiveName"
+      Write-Host "##vso[task.setvariable variable=PackageArchivePath]$archivePath"
+    displayName: ${{ parameters.displayName }}

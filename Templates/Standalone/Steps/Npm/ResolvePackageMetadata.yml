@@ -1,0 +1,42 @@
+parameters:
+  - name: packageJsonPath
+    type: string
+    default: '$(Build.SourcesDirectory)/package.json'
+  - name: releaseTitleFormat
+    type: string
+    default: '{0} {1}'
+  - name: releaseTagFormat
+    type: string
+    default: 'v{1}'
+  - name: displayName
+    type: string
+    default: 'Resolve package metadata'
+
+steps:
+  - pwsh: |
+      $packageJsonPath = "${{ parameters.packageJsonPath }}"
+      if (-not (Test-Path -LiteralPath $packageJsonPath)) {
+        throw "Package manifest not found at $packageJsonPath"
+      }
+
+      $package = Get-Content -Raw -LiteralPath $packageJsonPath | ConvertFrom-Json
+      $packageName = [string]$package.name
+      $packageVersion = [string]$package.version
+
+      if ([string]::IsNullOrWhiteSpace($packageName)) {
+        throw "package.json is missing a name field."
+      }
+
+      if ([string]::IsNullOrWhiteSpace($packageVersion)) {
+        throw "package.json is missing a version field."
+      }
+
+      $releaseTitle = [string]::Format("${{ parameters.releaseTitleFormat }}", $packageName, $packageVersion)
+      $releaseTag = [string]::Format("${{ parameters.releaseTagFormat }}", $packageName, $packageVersion)
+
+      Write-Host "Resolved package $packageName@$packageVersion from $packageJsonPath"
+      Write-Host "##vso[task.setvariable variable=PackageName]$packageName"
+      Write-Host "##vso[task.setvariable variable=PackageVersion]$packageVersion"
+      Write-Host "##vso[task.setvariable variable=ReleaseTitle]$releaseTitle"
+      Write-Host "##vso[task.setvariable variable=ReleaseTag]$releaseTag"
+    displayName: ${{ parameters.displayName }}
