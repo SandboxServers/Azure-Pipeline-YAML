@@ -90,10 +90,10 @@ steps:
       $releaseNotes = @(
         "# $(PackageName) $(PackageVersion)",
         "",
-        "- Package: `$(PackageName)`",
-        "- Version: `$(PackageVersion)`",
-        "- Git ref: `$(Build.SourceBranch)`",
-        "- Commit: `$(Build.SourceVersion)`",
+        "- Package: ``$(PackageName)``",
+        "- Version: ``$(PackageVersion)``",
+        "- Git ref: ``$(Build.SourceBranch)``",
+        "- Commit: ``$(Build.SourceVersion)``",
         "- Build: [$(Build.BuildNumber)]($(System.CollectionUri)$(System.TeamProject)/_build/results?buildId=$(Build.BuildId))"
       ) -join [Environment]::NewLine
 
