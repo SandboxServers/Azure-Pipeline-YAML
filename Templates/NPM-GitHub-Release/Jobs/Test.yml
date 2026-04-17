@@ -1,3 +1,8 @@
+# Test job for NPM projects.
+# Runs the test suite after validating compilation.
+# Depends on the Build job so tests only run if compilation succeeds.
+# Runs: checkout → Node setup → cache restore → install → build → test.
+
 parameters:
   - name: vmImage
     type: string
@@ -8,22 +13,10 @@ parameters:
   - name: buildVariableTemplatePath
     type: string
     default: '/pipeline/variables/build.yml'
-  - name: versionOverride
-    type: string
-    default: 'auto'
-  - name: useSourceTagNameForVersion
-    type: boolean
-    default: false
-  - name: preBuildSteps
-    type: stepList
-    default: []
-  - name: postBuildSteps
-    type: stepList
-    default: []
 
 jobs:
-  - job: BuildPackage
-    displayName: 'Build, Test, and Pack'
+  - job: Test
+    displayName: 'Test'
     pool:
       vmImage: ${{ parameters.vmImage }}
     variables:
@@ -31,12 +24,9 @@ jobs:
       - template: ${{ parameters.buildVariableTemplatePath }}@self
     steps:
       - checkout: self
-        fetchDepth: 0
-        fetchTags: true
+        fetchDepth: 1
 
       - download: none
-
-      - ${{ parameters.preBuildSteps }}
 
       - template: ../../Standalone/Steps/Node/UseNode.yml
         parameters:
@@ -53,31 +43,12 @@ jobs:
             path: '$(npmCacheDirectory)'
             displayName: 'Restore npm cache'
 
-      - template: ../../Standalone/Steps/Npm/ResolvePackageMetadata.yml
-        parameters:
-          packageJsonPath: '$(Build.SourcesDirectory)/$(packageJsonPath)'
-          versionOverride: ${{ parameters.versionOverride }}
-          useSourceTagNameForVersion: ${{ parameters.useSourceTagNameForVersion }}
-          releaseTitleFormat: '$(releaseTitleFormat)'
-          releaseTagFormat: '$(releaseTagFormat)'
-
-      - ${{ if or(ne(parameters.versionOverride, 'auto'), eq(parameters.useSourceTagNameForVersion, true)) }}:
-        - template: ../../Standalone/Steps/Npm/Run.yml
-          parameters:
-            displayName: 'Apply resolved package version'
-            workingDirectory: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)'
-            taskCommand: 'custom'
-            customCommand: 'version $(PackageVersion) --no-git-tag-version --allow-same-version --ignore-scripts'
-            env:
-              NPM_CONFIG_CACHE: '$(npmCacheDirectory)'
-
       - ${{ if eq(variables['npmInstallCommand'], 'ci') }}:
         - template: ../../Standalone/Steps/Npm/Run.yml
           parameters:
             displayName: 'Install dependencies (npm ci)'
             workingDirectory: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)'
             taskCommand: 'ci'
-            verbose: true
             env:
               NPM_CONFIG_CACHE: '$(npmCacheDirectory)'
 
@@ -87,7 +58,6 @@ jobs:
             displayName: 'Install dependencies (npm install)'
             workingDirectory: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)'
             taskCommand: 'install'
-            verbose: true
             env:
               NPM_CONFIG_CACHE: '$(npmCacheDirectory)'
 
@@ -120,22 +90,3 @@ jobs:
             customCommand: '$(npmTestCommand)'
             env:
               NPM_CONFIG_CACHE: '$(npmCacheDirectory)'
-
-      - template: ../../Standalone/Steps/Npm/Pack.yml
-        parameters:
-          workingDirectory: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)'
-          outputDirectory: '$(Build.ArtifactStagingDirectory)/$(packageArtifactName)'
-          releaseNotesPath: '$(Build.ArtifactStagingDirectory)/$(packageArtifactName)/$(releaseNotesFileName)'
-          manifestPath: '$(Build.ArtifactStagingDirectory)/$(packageArtifactName)/$(packageManifestFileName)'
-          extraArgs: '$(npmPackArgs)'
-          dryRun: '$(npmPackDryRun)'
-          ignoreScripts: '$(npmPackIgnoreScripts)'
-          includeManifest: '$(includePackageManifest)'
-
-      - template: ../../Standalone/Steps/Artifacts/PublishPipelineArtifact.yml
-        parameters:
-          targetPath: '$(Build.ArtifactStagingDirectory)/$(packageArtifactName)'
-          artifactName: '$(packageArtifactName)'
-          displayName: 'Publish packaged artifact'
-
-      - ${{ parameters.postBuildSteps }}

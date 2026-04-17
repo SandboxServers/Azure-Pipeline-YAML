@@ -56,56 +56,56 @@ jobs:
           path: '$(Pipeline.Workspace)/$(packageArtifactName)'
           displayName: 'Download packaged artifact'
 
-      - template: ../../Standalone/Steps/GitHub/PreviewRelease.yml
-        parameters:
-          repositoryName: '$(githubRepositoryName)'
-          title: '$(ReleaseTitle)'
-          tag: '$(ReleaseTag)'
-          target: '$(Build.SourceVersion)'
-          assets: '$(Pipeline.Workspace)/$(packageArtifactName)/$(packageOutputGlob)'
-          releaseNotesFilePath: '$(Pipeline.Workspace)/$(packageArtifactName)/$(releaseNotesFileName)'
-          condition: and(succeeded(), eq(variables['gitHubReleaseDryRun'], 'true'))
+      - ${{ if eq(variables['gitHubReleaseDryRun'], 'true') }}:
+        - template: ../../Standalone/Steps/GitHub/PreviewRelease.yml
+          parameters:
+            repositoryName: '$(githubRepositoryName)'
+            title: '$(ReleaseTitle)'
+            tag: '$(ReleaseTag)'
+            target: '$(Build.SourceVersion)'
+            assets: '$(Pipeline.Workspace)/$(packageArtifactName)/$(packageOutputGlob)'
+            releaseNotesFilePath: '$(Pipeline.Workspace)/$(packageArtifactName)/$(releaseNotesFileName)'
 
-      - template: ../../Standalone/Steps/GitHub/CreateRelease.yml
-        parameters:
-          gitHubConnection: '$(githubServiceConnection)'
-          repositoryName: '$(githubRepositoryName)'
-          target: '$(Build.SourceVersion)'
-          tagSource: 'gitTag'
-          tagPattern: '$(gitTagPattern)'
-          title: '$(ReleaseTitle)'
-          releaseNotesSource: 'filePath'
-          releaseNotesFilePath: '$(Pipeline.Workspace)/$(packageArtifactName)/$(releaseNotesFileName)'
-          assets: '$(Pipeline.Workspace)/$(packageArtifactName)/$(packageOutputGlob)'
-          isDraft: '$(gitHubReleaseDraft)'
-          isPreRelease: '$(gitHubReleasePreRelease)'
-          makeLatest: '$(gitHubReleaseMakeLatest)'
-          addChangeLog: '$(gitHubReleaseAddChangeLog)'
-          changeLogCompareToRelease: '$(gitHubReleaseChangeLogCompareTo)'
-          changeLogCompareToReleaseTag: '$(gitHubReleaseChangeLogCompareToReleaseTag)'
-          changeLogType: '$(gitHubReleaseChangeLogType)'
-          changeLogLabels: '$(gitHubReleaseChangeLogLabels)'
-          condition: and(succeeded(), ne(variables['gitHubReleaseDryRun'], 'true'), eq(variables['ResolvedTagSource'], 'gitTag'))
+      - ${{ if and(ne(variables['gitHubReleaseDryRun'], 'true'), eq(variables['releaseFromTagOnly'], 'true'), eq(parameters.versionOverride, 'auto'), eq(parameters.useSourceTagNameForVersion, false)) }}:
+        - template: ../../Standalone/Steps/GitHub/CreateRelease.yml
+          parameters:
+            gitHubConnection: '$(githubServiceConnection)'
+            repositoryName: '$(githubRepositoryName)'
+            target: '$(Build.SourceVersion)'
+            tagSource: 'gitTag'
+            tagPattern: '$(gitTagPattern)'
+            title: '$(ReleaseTitle)'
+            releaseNotesSource: 'filePath'
+            releaseNotesFilePath: '$(Pipeline.Workspace)/$(packageArtifactName)/$(releaseNotesFileName)'
+            assets: '$(Pipeline.Workspace)/$(packageArtifactName)/$(packageOutputGlob)'
+            isDraft: '$(gitHubReleaseDraft)'
+            isPreRelease: '$(gitHubReleasePreRelease)'
+            makeLatest: '$(gitHubReleaseMakeLatest)'
+            addChangeLog: '$(gitHubReleaseAddChangeLog)'
+            changeLogCompareToRelease: '$(gitHubReleaseChangeLogCompareTo)'
+            changeLogCompareToReleaseTag: '$(gitHubReleaseChangeLogCompareToReleaseTag)'
+            changeLogType: '$(gitHubReleaseChangeLogType)'
+            changeLogLabels: '$(gitHubReleaseChangeLogLabels)'
 
-      - template: ../../Standalone/Steps/GitHub/CreateRelease.yml
-        parameters:
-          gitHubConnection: '$(githubServiceConnection)'
-          repositoryName: '$(githubRepositoryName)'
-          target: '$(Build.SourceVersion)'
-          tagSource: 'userSpecifiedTag'
-          tag: '$(ReleaseTag)'
-          title: '$(ReleaseTitle)'
-          releaseNotesSource: 'filePath'
-          releaseNotesFilePath: '$(Pipeline.Workspace)/$(packageArtifactName)/$(releaseNotesFileName)'
-          assets: '$(Pipeline.Workspace)/$(packageArtifactName)/$(packageOutputGlob)'
-          isDraft: '$(gitHubReleaseDraft)'
-          isPreRelease: '$(gitHubReleasePreRelease)'
-          makeLatest: '$(gitHubReleaseMakeLatest)'
-          addChangeLog: '$(gitHubReleaseAddChangeLog)'
-          changeLogCompareToRelease: '$(gitHubReleaseChangeLogCompareTo)'
-          changeLogCompareToReleaseTag: '$(gitHubReleaseChangeLogCompareToReleaseTag)'
-          changeLogType: '$(gitHubReleaseChangeLogType)'
-          changeLogLabels: '$(gitHubReleaseChangeLogLabels)'
-          condition: and(succeeded(), ne(variables['gitHubReleaseDryRun'], 'true'), eq(variables['ResolvedTagSource'], 'userSpecifiedTag'))
+      - ${{ if and(ne(variables['gitHubReleaseDryRun'], 'true'), or(ne(variables['releaseFromTagOnly'], 'true'), ne(parameters.versionOverride, 'auto'), eq(parameters.useSourceTagNameForVersion, true))) }}:
+        - template: ../../Standalone/Steps/GitHub/CreateRelease.yml
+          parameters:
+            gitHubConnection: '$(githubServiceConnection)'
+            repositoryName: '$(githubRepositoryName)'
+            target: '$(Build.SourceVersion)'
+            tagSource: 'userSpecifiedTag'
+            tag: '$(ReleaseTag)'
+            title: '$(ReleaseTitle)'
+            releaseNotesSource: 'filePath'
+            releaseNotesFilePath: '$(Pipeline.Workspace)/$(packageArtifactName)/$(releaseNotesFileName)'
+            assets: '$(Pipeline.Workspace)/$(packageArtifactName)/$(packageOutputGlob)'
+            isDraft: '$(gitHubReleaseDraft)'
+            isPreRelease: '$(gitHubReleasePreRelease)'
+            makeLatest: '$(gitHubReleaseMakeLatest)'
+            addChangeLog: '$(gitHubReleaseAddChangeLog)'
+            changeLogCompareToRelease: '$(gitHubReleaseChangeLogCompareTo)'
+            changeLogCompareToReleaseTag: '$(gitHubReleaseChangeLogCompareToReleaseTag)'
+            changeLogType: '$(gitHubReleaseChangeLogType)'
+            changeLogLabels: '$(gitHubReleaseChangeLogLabels)'
 
       - ${{ parameters.postReleaseSteps }}

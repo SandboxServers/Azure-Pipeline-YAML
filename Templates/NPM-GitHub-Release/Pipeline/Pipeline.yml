@@ -39,6 +39,26 @@ parameters:
   - name: postReleaseSteps
     type: stepList
     default: []
+  # Security scanning parameters — passed through to the Build stage.
+  # All scanners are enabled by default. Consumers can disable or tune them.
+  - name: runSecurityScan
+    type: boolean
+    default: true
+  - name: runNpmAudit
+    type: boolean
+    default: true
+  - name: npmAuditLevel
+    type: string
+    default: 'high'
+  - name: runSast
+    type: boolean
+    default: true
+  - name: sastConfig
+    type: string
+    default: 'p/typescript p/security-audit'
+  - name: runSecretScan
+    type: boolean
+    default: true
 
 stages:
   - template: ../Stages/Build.yml
@@ -51,6 +71,12 @@ stages:
       useSourceTagNameForVersion: ${{ parameters.useSourceTagNameForVersion }}
       preBuildSteps: ${{ parameters.preBuildSteps }}
       postBuildSteps: ${{ parameters.postBuildSteps }}
+      runSecurityScan: ${{ parameters.runSecurityScan }}
+      runNpmAudit: ${{ parameters.runNpmAudit }}
+      npmAuditLevel: ${{ parameters.npmAuditLevel }}
+      runSast: ${{ parameters.runSast }}
+      sastConfig: ${{ parameters.sastConfig }}
+      runSecretScan: ${{ parameters.runSecretScan }}
 
   - template: ../Stages/Release.yml
     parameters:

@@ -1,3 +1,8 @@
+# Build job for NPM projects.
+# Validates that the project compiles successfully.
+# Runs: checkout → Node setup → cache restore → install → build.
+# Downstream jobs (Test, Package) depend on this for gating.
+
 parameters:
   - name: vmImage
     type: string
@@ -17,13 +22,10 @@ parameters:
   - name: preBuildSteps
     type: stepList
     default: []
-  - name: postBuildSteps
-    type: stepList
-    default: []
 
 jobs:
-  - job: BuildPackage
-    displayName: 'Build, Test, and Pack'
+  - job: Build
+    displayName: 'Build'
     pool:
       vmImage: ${{ parameters.vmImage }}
     variables:
@@ -110,32 +112,3 @@ jobs:
             customCommand: '$(npmBuildCommand)'
             env:
               NPM_CONFIG_CACHE: '$(npmCacheDirectory)'
-
-      - ${{ if ne(variables['npmTestCommand'], '') }}:
-        - template: ../../Standalone/Steps/Npm/Run.yml
-          parameters:
-            displayName: 'Run tests'
-            workingDirectory: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)'
-            taskCommand: 'custom'
-            customCommand: '$(npmTestCommand)'
-            env:
-              NPM_CONFIG_CACHE: '$(npmCacheDirectory)'
-
-      - template: ../../Standalone/Steps/Npm/Pack.yml
-        parameters:
-          workingDirectory: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)'
-          outputDirectory: '$(Build.ArtifactStagingDirectory)/$(packageArtifactName)'
-          releaseNotesPath: '$(Build.ArtifactStagingDirectory)/$(packageArtifactName)/$(releaseNotesFileName)'
-          manifestPath: '$(Build.ArtifactStagingDirectory)/$(packageArtifactName)/$(packageManifestFileName)'
-          extraArgs: '$(npmPackArgs)'
-          dryRun: '$(npmPackDryRun)'
-          ignoreScripts: '$(npmPackIgnoreScripts)'
-          includeManifest: '$(includePackageManifest)'
-
-      - template: ../../Standalone/Steps/Artifacts/PublishPipelineArtifact.yml
-        parameters:
-          targetPath: '$(Build.ArtifactStagingDirectory)/$(packageArtifactName)'
-          artifactName: '$(packageArtifactName)'
-          displayName: 'Publish packaged artifact'
-
-      - ${{ parameters.postBuildSteps }}

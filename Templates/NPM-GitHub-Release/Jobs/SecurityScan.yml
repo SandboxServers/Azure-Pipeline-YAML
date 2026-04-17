@@ -1,0 +1,160 @@
+# Security scanning job for NPM/Node.js/TypeScript projects.
+# Runs in parallel with other build-stage jobs (no dependencies).
+#
+# Scanners (all free/open-source, all optional via parameters):
+# - npm audit:  dependency vulnerability scanning via the npm advisory database.
+# - Semgrep:    static analysis (SAST) for TypeScript/JavaScript vulnerabilities.
+# - GitLeaks:   secret and credential detection in source and git history.
+#
+# All scanners use continueOnError so findings are reported without blocking.
+# Results are published as a pipeline artifact in SARIF and text formats.
+
+parameters:
+  - name: vmImage
+    type: string
+    default: 'ubuntu-latest'
+  - name: globalVariableTemplatePath
+    type: string
+    default: '/pipeline/variables/global.yml'
+  - name: buildVariableTemplatePath
+    type: string
+    default: '/pipeline/variables/build.yml'
+  - name: runNpmAudit
+    type: boolean
+    default: true
+  - name: npmAuditLevel
+    type: string
+    default: 'high'
+  - name: runSast
+    type: boolean
+    default: true
+  - name: sastConfig
+    type: string
+    default: 'p/typescript p/security-audit'
+  - name: runSecretScan
+    type: boolean
+    default: true
+
+jobs:
+  - job: SecurityScan
+    displayName: 'Security Scan'
+    pool:
+      vmImage: ${{ parameters.vmImage }}
+    variables:
+      - template: ${{ parameters.globalVariableTemplatePath }}@self
+      - template: ${{ parameters.buildVariableTemplatePath }}@self
+    steps:
+      - checkout: self
+        fetchDepth: 1
+
+      - download: none
+
+      - template: ../../Standalone/Steps/Node/UseNode.yml
+        parameters:
+          version: '$(nodeVersion)'
+          displayName: 'Use Node.js $(nodeVersion)'
+
+      - ${{ if eq(variables['enableNpmCache'], 'true') }}:
+        - template: ../../Standalone/Steps/Cache/Restore.yml
+          parameters:
+            key: 'npm | "$(Agent.OS)" | $(npmCacheKeyFile)'
+            restoreKeys: |
+              npm | "$(Agent.OS)"
+              npm
+            path: '$(npmCacheDirectory)'
+            displayName: 'Restore npm cache'
+
+      - ${{ if eq(variables['npmInstallCommand'], 'ci') }}:
+        - template: ../../Standalone/Steps/Npm/Run.yml
+          parameters:
+            displayName: 'Install dependencies (npm ci)'
+            workingDirectory: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)'
+            taskCommand: 'ci'
+            env:
+              NPM_CONFIG_CACHE: '$(npmCacheDirectory)'
+
+      - ${{ if eq(variables['npmInstallCommand'], 'install') }}:
+        - template: ../../Standalone/Steps/Npm/Run.yml
+          parameters:
+            displayName: 'Install dependencies (npm install)'
+            workingDirectory: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)'
+            taskCommand: 'install'
+            env:
+              NPM_CONFIG_CACHE: '$(npmCacheDirectory)'
+
+      - ${{ if eq(variables['npmInstallCommand'], 'custom') }}:
+        - template: ../../Standalone/Steps/Npm/Run.yml
+          parameters:
+            displayName: 'Install dependencies (custom npm command)'
+            workingDirectory: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)'
+            taskCommand: 'custom'
+            customCommand: '$(npmInstallCustomCommand)'
+            env:
+              NPM_CONFIG_CACHE: '$(npmCacheDirectory)'
+
+      # npm audit — dependency vulnerability scanning
+      - ${{ if eq(parameters.runNpmAudit, true) }}:
+        - script: |
+            echo "Running npm audit at level: ${{ parameters.npmAuditLevel }}"
+            npm audit --audit-level=${{ parameters.npmAuditLevel }} 2>&1 | tee "$(Build.ArtifactStagingDirectory)/npm-audit.txt"
+            EXIT_CODE=$?
+            echo "npm audit exit code: $EXIT_CODE"
+            if [ $EXIT_CODE -ne 0 ]; then
+              echo "##vso[task.logissue type=warning]npm audit found vulnerabilities at or above ${{ parameters.npmAuditLevel }} severity"
+            fi
+          displayName: 'Security: npm audit'
+          workingDirectory: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)'
+          continueOnError: true
+
+      # Semgrep — static analysis (SAST)
+      - ${{ if eq(parameters.runSast, true) }}:
+        - script: |
+            echo "Installing Semgrep..."
+            pip install --quiet --disable-pip-version-check semgrep
+
+            echo "Running Semgrep SAST scan..."
+            SEMGREP_ARGS=""
+            for cfg in ${{ parameters.sastConfig }}; do
+              SEMGREP_ARGS="$SEMGREP_ARGS --config $cfg"
+            done
+
+            semgrep scan \
+              $SEMGREP_ARGS \
+              --sarif \
+              --output "$(Build.ArtifactStagingDirectory)/semgrep.sarif" \
+              --metrics off \
+              --no-git-ignore
+
+            EXIT_CODE=$?
+            if [ $EXIT_CODE -ne 0 ]; then
+              echo "##vso[task.logissue type=warning]Semgrep found code issues (exit code: $EXIT_CODE)"
+            fi
+          displayName: 'Security: Semgrep SAST'
+          continueOnError: true
+
+      # GitLeaks — secret and credential detection
+      - ${{ if eq(parameters.runSecretScan, true) }}:
+        - script: |
+            GITLEAKS_VERSION="8.21.2"
+            echo "Installing GitLeaks v${GITLEAKS_VERSION}..."
+            curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+              | tar xz -C /tmp
+
+            echo "Running GitLeaks secret scan..."
+            /tmp/gitleaks detect \
+              --source "$(Build.SourcesDirectory)" \
+              --report-format sarif \
+              --report-path "$(Build.ArtifactStagingDirectory)/gitleaks.sarif" \
+              --exit-code 0 \
+              --verbose
+          displayName: 'Security: GitLeaks Secret Scan'
+          continueOnError: true
+
+      # Publish all security scan results as a pipeline artifact
+      - task: PublishPipelineArtifact@1
+        displayName: 'Publish security scan results'
+        condition: always()
+        inputs:
+          targetPath: '$(Build.ArtifactStagingDirectory)'
+          artifactName: 'security-results'
+          publishLocation: 'pipeline'

@@ -1,3 +1,9 @@
+# Package job for NPM projects.
+# Packs the project into a distributable tarball and publishes the pipeline artifact.
+# Depends on the Test job so packaging only happens if tests pass.
+# Runs: checkout → Node setup → cache restore → install → resolve metadata →
+#       version override → pack (lifecycle scripts handle build) → publish artifact.
+
 parameters:
   - name: vmImage
     type: string
@@ -14,16 +20,13 @@ parameters:
   - name: useSourceTagNameForVersion
     type: boolean
     default: false
-  - name: preBuildSteps
-    type: stepList
-    default: []
   - name: postBuildSteps
     type: stepList
     default: []
 
 jobs:
-  - job: BuildPackage
-    displayName: 'Build, Test, and Pack'
+  - job: Package
+    displayName: 'Package'
     pool:
       vmImage: ${{ parameters.vmImage }}
     variables:
@@ -35,8 +38,6 @@ jobs:
         fetchTags: true
 
       - download: none
-
-      - ${{ parameters.preBuildSteps }}
 
       - template: ../../Standalone/Steps/Node/UseNode.yml
         parameters:
@@ -77,7 +78,6 @@ jobs:
             displayName: 'Install dependencies (npm ci)'
             workingDirectory: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)'
             taskCommand: 'ci'
-            verbose: true
             env:
               NPM_CONFIG_CACHE: '$(npmCacheDirectory)'
 
@@ -87,7 +87,6 @@ jobs:
             displayName: 'Install dependencies (npm install)'
             workingDirectory: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)'
             taskCommand: 'install'
-            verbose: true
             env:
               NPM_CONFIG_CACHE: '$(npmCacheDirectory)'
 
@@ -98,26 +97,6 @@ jobs:
             workingDirectory: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)'
             taskCommand: 'custom'
             customCommand: '$(npmInstallCustomCommand)'
-            env:
-              NPM_CONFIG_CACHE: '$(npmCacheDirectory)'
-
-      - ${{ if ne(variables['npmBuildCommand'], '') }}:
-        - template: ../../Standalone/Steps/Npm/Run.yml
-          parameters:
-            displayName: 'Build package'
-            workingDirectory: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)'
-            taskCommand: 'custom'
-            customCommand: '$(npmBuildCommand)'
-            env:
-              NPM_CONFIG_CACHE: '$(npmCacheDirectory)'
-
-      - ${{ if ne(variables['npmTestCommand'], '') }}:
-        - template: ../../Standalone/Steps/Npm/Run.yml
-          parameters:
-            displayName: 'Run tests'
-            workingDirectory: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)'
-            taskCommand: 'custom'
-            customCommand: '$(npmTestCommand)'
             env:
               NPM_CONFIG_CACHE: '$(npmCacheDirectory)'
 

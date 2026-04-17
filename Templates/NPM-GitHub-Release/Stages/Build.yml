@@ -23,12 +23,32 @@ parameters:
   - name: postBuildSteps
     type: stepList
     default: []
+  # Security scanning parameters.
+  - name: runSecurityScan
+    type: boolean
+    default: true
+  - name: runNpmAudit
+    type: boolean
+    default: true
+  - name: npmAuditLevel
+    type: string
+    default: 'high'
+  - name: runSast
+    type: boolean
+    default: true
+  - name: sastConfig
+    type: string
+    default: 'p/typescript p/security-audit'
+  - name: runSecretScan
+    type: boolean
+    default: true
 
 stages:
   - stage: ${{ parameters.stageName }}
-    displayName: 'Build & Pack NPM App'
+    displayName: 'Build, Test, Pack & Scan'
     jobs:
-      - template: ../Jobs/BuildPackage.yml
+      # Job 1: Build — validates compilation.
+      - template: ../Jobs/Build.yml
         parameters:
           vmImage: ${{ parameters.vmImage }}
           globalVariableTemplatePath: ${{ parameters.globalVariableTemplatePath }}
@@ -36,4 +56,33 @@ stages:
           versionOverride: ${{ parameters.versionOverride }}
           useSourceTagNameForVersion: ${{ parameters.useSourceTagNameForVersion }}
           preBuildSteps: ${{ parameters.preBuildSteps }}
+
+      # Job 2: Test — runs after Build succeeds.
+      - template: ../Jobs/Test.yml
+        parameters:
+          vmImage: ${{ parameters.vmImage }}
+          globalVariableTemplatePath: ${{ parameters.globalVariableTemplatePath }}
+          buildVariableTemplatePath: ${{ parameters.buildVariableTemplatePath }}
+
+      # Job 3: Package — runs after Test succeeds, publishes artifact.
+      - template: ../Jobs/Package.yml
+        parameters:
+          vmImage: ${{ parameters.vmImage }}
+          globalVariableTemplatePath: ${{ parameters.globalVariableTemplatePath }}
+          buildVariableTemplatePath: ${{ parameters.buildVariableTemplatePath }}
+          versionOverride: ${{ parameters.versionOverride }}
+          useSourceTagNameForVersion: ${{ parameters.useSourceTagNameForVersion }}
           postBuildSteps: ${{ parameters.postBuildSteps }}
+
+      # Job 4: Security Scan — runs in parallel with all other jobs.
+      - ${{ if eq(parameters.runSecurityScan, true) }}:
+        - template: ../Jobs/SecurityScan.yml
+          parameters:
+            vmImage: ${{ parameters.vmImage }}
+            globalVariableTemplatePath: ${{ parameters.globalVariableTemplatePath }}
+            buildVariableTemplatePath: ${{ parameters.buildVariableTemplatePath }}
+            runNpmAudit: ${{ parameters.runNpmAudit }}
+            npmAuditLevel: ${{ parameters.npmAuditLevel }}
+            runSast: ${{ parameters.runSast }}
+            sastConfig: ${{ parameters.sastConfig }}
+            runSecretScan: ${{ parameters.runSecretScan }}
