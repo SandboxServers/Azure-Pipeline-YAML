@@ -24,7 +24,6 @@ parameters:
 jobs:
   - job: Test
     displayName: 'Test'
-    dependsOn: Build
     pool:
       vmImage: ${{ parameters.vmImage }}
     variables:
