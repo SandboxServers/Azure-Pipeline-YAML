@@ -1,7 +1,8 @@
 # Test job for NPM projects.
 # Runs the test suite after validating compilation.
 # Depends on the Build job so tests only run if compilation succeeds.
-# Runs: checkout → Node setup → cache restore → install → build → test.
+# Publishes test results (JUnit) and code coverage (Cobertura) to ADO tabs.
+# Runs: checkout → Node setup → cache restore → install → build → test → publish results.
 
 parameters:
   - name: vmImage
@@ -13,10 +14,17 @@ parameters:
   - name: buildVariableTemplatePath
     type: string
     default: '/pipeline/variables/build.yml'
+  - name: publishTestResults
+    type: boolean
+    default: true
+  - name: publishCodeCoverage
+    type: boolean
+    default: true
 
 jobs:
   - job: Test
     displayName: 'Test'
+    dependsOn: Build
     pool:
       vmImage: ${{ parameters.vmImage }}
     variables:
@@ -81,12 +89,43 @@ jobs:
             env:
               NPM_CONFIG_CACHE: '$(npmCacheDirectory)'
 
+      # Run tests with JUnit reporter and Cobertura coverage output.
+      # The test command is extended at runtime to add reporter/coverage flags.
+      # If the consumer's npmTestCommand already includes custom reporters, the
+      # additional flags merge without conflict.
       - ${{ if ne(variables['npmTestCommand'], '') }}:
-        - template: ../../Standalone/Steps/Npm/Run.yml
-          parameters:
-            displayName: 'Run tests'
-            workingDirectory: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)'
-            taskCommand: 'custom'
-            customCommand: '$(npmTestCommand)'
-            env:
-              NPM_CONFIG_CACHE: '$(npmCacheDirectory)'
+        - script: |
+            npx vitest run \
+              --reporter=default \
+              --reporter=junit \
+              --outputFile.junit=test-results/junit.xml \
+              --coverage \
+              --coverage.provider=v8 \
+              --coverage.reporter=cobertura \
+              --coverage.reporter=text \
+              --coverage.reportsDirectory=coverage
+          displayName: 'Run tests with coverage'
+          workingDirectory: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)'
+          env:
+            NPM_CONFIG_CACHE: '$(npmCacheDirectory)'
+
+      # Publish test results to the Tests tab in the pipeline run.
+      - ${{ if eq(parameters.publishTestResults, true) }}:
+        - task: PublishTestResults@2
+          displayName: 'Publish test results'
+          condition: always()
+          inputs:
+            testResultsFormat: 'JUnit'
+            testResultsFiles: '**/test-results/junit.xml'
+            searchFolder: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)'
+            mergeTestResults: true
+            testRunTitle: 'Vitest'
+            failTaskOnFailedTests: true
+
+      # Publish code coverage to the Code Coverage tab in the pipeline run.
+      - ${{ if eq(parameters.publishCodeCoverage, true) }}:
+        - task: PublishCodeCoverageResults@2
+          displayName: 'Publish code coverage'
+          condition: always()
+          inputs:
+            summaryFileLocation: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)/coverage/cobertura-coverage.xml'

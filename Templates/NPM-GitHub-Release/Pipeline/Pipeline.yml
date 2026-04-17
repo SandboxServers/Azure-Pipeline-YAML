@@ -59,6 +59,13 @@ parameters:
   - name: runSecretScan
     type: boolean
     default: true
+  # Test reporting parameters — passed through to the Build stage.
+  - name: publishTestResults
+    type: boolean
+    default: true
+  - name: publishCodeCoverage
+    type: boolean
+    default: true
 
 stages:
   - template: ../Stages/Build.yml
@@ -77,6 +84,8 @@ stages:
       runSast: ${{ parameters.runSast }}
       sastConfig: ${{ parameters.sastConfig }}
       runSecretScan: ${{ parameters.runSecretScan }}
+      publishTestResults: ${{ parameters.publishTestResults }}
+      publishCodeCoverage: ${{ parameters.publishCodeCoverage }}
 
   - template: ../Stages/Release.yml
     parameters:

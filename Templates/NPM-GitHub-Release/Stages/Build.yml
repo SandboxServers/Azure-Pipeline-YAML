@@ -42,6 +42,13 @@ parameters:
   - name: runSecretScan
     type: boolean
     default: true
+  # Test reporting parameters.
+  - name: publishTestResults
+    type: boolean
+    default: true
+  - name: publishCodeCoverage
+    type: boolean
+    default: true
 
 stages:
   - stage: ${{ parameters.stageName }}
@@ -63,6 +70,8 @@ stages:
           vmImage: ${{ parameters.vmImage }}
           globalVariableTemplatePath: ${{ parameters.globalVariableTemplatePath }}
           buildVariableTemplatePath: ${{ parameters.buildVariableTemplatePath }}
+          publishTestResults: ${{ parameters.publishTestResults }}
+          publishCodeCoverage: ${{ parameters.publishCodeCoverage }}
 
       # Job 3: Package — runs after Test succeeds, publishes artifact.
       - template: ../Jobs/Package.yml

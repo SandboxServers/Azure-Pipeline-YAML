@@ -158,3 +158,13 @@ jobs:
           targetPath: '$(Build.ArtifactStagingDirectory)'
           artifactName: 'security-results'
           publishLocation: 'pipeline'
+
+      # Publish SARIF files as CodeAnalysisLogs for the SARIF SAST Scans Tab extension.
+      # The extension reads *.sarif from a build artifact named 'CodeAnalysisLogs'.
+      # Must use PublishBuildArtifacts@1 (not PublishPipelineArtifact@1).
+      - task: PublishBuildArtifacts@1
+        displayName: 'Publish SARIF to Scans tab'
+        condition: always()
+        inputs:
+          PathtoPublish: '$(Build.ArtifactStagingDirectory)'
+          ArtifactName: 'CodeAnalysisLogs'

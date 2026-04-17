@@ -27,6 +27,7 @@ parameters:
 jobs:
   - job: Package
     displayName: 'Package'
+    dependsOn: Test
     pool:
       vmImage: ${{ parameters.vmImage }}
     variables:
