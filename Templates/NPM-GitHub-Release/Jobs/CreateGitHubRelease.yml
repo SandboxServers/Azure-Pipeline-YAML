@@ -99,8 +99,18 @@ jobs:
               releaseNotesSource: 'filePath'
               releaseNotesFilePath: '$(Pipeline.Workspace)/$(packageArtifactName)/$(releaseNotesFileName)'
               assets: '$(Pipeline.Workspace)/$(packageArtifactName)/$(packageOutputGlob)'
-              isDraft: ${{ if eq(parameters.releaseType, 'draft') }}true${{ elseif ne(parameters.releaseType, 'default') }}false${{ else }}$(gitHubReleaseDraft)${{ end }}
-              isPreRelease: ${{ if eq(parameters.releaseType, 'prerelease') }}true${{ elseif ne(parameters.releaseType, 'default') }}false${{ else }}$(gitHubReleasePreRelease)${{ end }}
+              ${{ if eq(parameters.releaseType, 'draft') }}:
+                isDraft: true
+              ${{ elseif ne(parameters.releaseType, 'default') }}:
+                isDraft: false
+              ${{ else }}:
+                isDraft: $(gitHubReleaseDraft)
+              ${{ if eq(parameters.releaseType, 'prerelease') }}:
+                isPreRelease: true
+              ${{ elseif ne(parameters.releaseType, 'default') }}:
+                isPreRelease: false
+              ${{ else }}:
+                isPreRelease: $(gitHubReleasePreRelease)
               makeLatest: '$(gitHubReleaseMakeLatest)'
               addChangeLog: '$(gitHubReleaseAddChangeLog)'
               changeLogCompareToRelease: '$(gitHubReleaseChangeLogCompareTo)'
@@ -120,8 +130,18 @@ jobs:
               releaseNotesSource: 'filePath'
               releaseNotesFilePath: '$(Pipeline.Workspace)/$(packageArtifactName)/$(releaseNotesFileName)'
               assets: '$(Pipeline.Workspace)/$(packageArtifactName)/$(packageOutputGlob)'
-              isDraft: ${{ if eq(parameters.releaseType, 'draft') }}true${{ elseif ne(parameters.releaseType, 'default') }}false${{ else }}$(gitHubReleaseDraft)${{ end }}
-              isPreRelease: ${{ if eq(parameters.releaseType, 'prerelease') }}true${{ elseif ne(parameters.releaseType, 'default') }}false${{ else }}$(gitHubReleasePreRelease)${{ end }}
+              ${{ if eq(parameters.releaseType, 'draft') }}:
+                isDraft: true
+              ${{ elseif ne(parameters.releaseType, 'default') }}:
+                isDraft: false
+              ${{ else }}:
+                isDraft: $(gitHubReleaseDraft)
+              ${{ if eq(parameters.releaseType, 'prerelease') }}:
+                isPreRelease: true
+              ${{ elseif ne(parameters.releaseType, 'default') }}:
+                isPreRelease: false
+              ${{ else }}:
+                isPreRelease: $(gitHubReleasePreRelease)
               makeLatest: '$(gitHubReleaseMakeLatest)'
               addChangeLog: '$(gitHubReleaseAddChangeLog)'
               changeLogCompareToRelease: '$(gitHubReleaseChangeLogCompareTo)'
