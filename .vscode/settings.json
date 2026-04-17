@@ -1,0 +1,6 @@
+{
+  "files.associations": {
+    "Templates/**/*.yml": "azure-pipelines",
+    "scripts/**/*.yml": "azure-pipelines"
+  }
+}
