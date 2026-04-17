@@ -115,7 +115,7 @@ jobs:
           condition: always()
           inputs:
             testResultsFormat: 'JUnit'
-            testResultsFiles: '**/test-results/junit.xml'
+            testResultsFiles: '$(Build.SourcesDirectory)/test-results/junit.xml'
             searchFolder: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)'
             mergeTestResults: true
             testRunTitle: 'Vitest'
