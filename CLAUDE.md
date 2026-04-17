@@ -1,3 +1,7 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
 ## Purpose
 
 This is the shared Azure Pipelines YAML template library for the organization. Consumer repositories `extends` from templates here via the `@pipelinePatterns` resource reference. This repo owns reusable contracts and implementation; consumer repos own their triggers, queue-time parameters, and variable files.
@@ -97,7 +101,7 @@ Custom script is appropriate for: deriving metadata from files, generating manif
 
 ## Error Checking
 
-After editing any `.yml` file in `Templates/`, call `get_errors` on the modified file before considering the task done. The Azure Pipelines LSP (`ms-azure-devops.azure-pipelines`) is active on all files in `Templates/` via `files.associations`. Treat any LSP errors as blocking.
+After editing any `.yml` file in `Templates/`, always call the available error-checking tool on the modified file before considering the task done. Treat any Azure Pipelines LSP errors as blocking.
 
 ## Parameter Threading Rule
 
