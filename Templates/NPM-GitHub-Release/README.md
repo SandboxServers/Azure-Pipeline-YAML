@@ -39,6 +39,12 @@ parameters:
       - dev
       - staging
       - prod
+  - name: versionOverride
+    type: string
+    default: auto
+  - name: useSourceTagNameForVersion
+    type: boolean
+    default: false
 
 resources:
   repositories:
@@ -56,6 +62,8 @@ extends:
     environmentVariableTemplateDirectory: '/pipeline/variables'
     vmImage: '$(vmImage)'
     environments: ${{ parameters.environments }}
+    versionOverride: ${{ parameters.versionOverride }}
+    useSourceTagNameForVersion: ${{ parameters.useSourceTagNameForVersion }}
 ```
 
 ## Template Parameters
@@ -67,6 +75,8 @@ extends:
 - `environmentVariableTemplateDirectory`: self-repo environment variable directory
 - `vmImage`: agent image
 - `environments`: selected release environments as an object/list
+- `versionOverride`: queue-time package version override, use `auto` to leave the normal version flow in place
+- `useSourceTagNameForVersion`: when `true`, derive the package version from the triggering tag name
 - `buildStageName`: build stage name
 - `releaseStageName`: release stage name
 - `preBuildSteps`: shared hook point inserted before build/install steps
@@ -113,6 +123,28 @@ Useful optional variables:
 - `gitHubReleaseChangeLogLabels`
 - `releaseTitleFormat`
 - `releaseTagFormat`
+
+## Queue-Time Version Selection
+
+The shared template supports two queue-time version controls:
+
+- `versionOverride`
+  Set this to an explicit version such as `1.2.3-dev.4` to override the package version for the pipeline run, regardless of branch.
+- `useSourceTagNameForVersion`
+  Set this to `true` to derive the package version from the triggering git tag name.
+
+Precedence:
+
+1. `versionOverride`
+2. `useSourceTagNameForVersion`
+3. `package.json` version
+
+Behavior notes:
+
+- `versionOverride` defaults to `auto`, which means “do not override”.
+- When a version override or tag-name-derived version is used, the build job applies that version with `npm version --no-git-tag-version --allow-same-version --ignore-scripts` before install/build/test/pack.
+- `useSourceTagNameForVersion` expects a tag-triggered run. If enabled on a branch run, metadata resolution fails intentionally.
+- A tag like `v1.2.3` is normalized to version `1.2.3` before `releaseTagFormat` is applied.
 
 ## Demo Mode
 

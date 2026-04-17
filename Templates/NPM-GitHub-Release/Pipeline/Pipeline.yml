@@ -15,6 +15,12 @@ parameters:
     type: object
     default:
       - dev
+  - name: versionOverride
+    type: string
+    default: 'auto'
+  - name: useSourceTagNameForVersion
+    type: boolean
+    default: false
   - name: buildStageName
     type: string
     default: 'Build'
@@ -41,6 +47,8 @@ stages:
       vmImage: ${{ parameters.vmImage }}
       globalVariableTemplatePath: ${{ parameters.globalVariableTemplatePath }}
       buildVariableTemplatePath: ${{ parameters.buildVariableTemplatePath }}
+      versionOverride: ${{ parameters.versionOverride }}
+      useSourceTagNameForVersion: ${{ parameters.useSourceTagNameForVersion }}
       preBuildSteps: ${{ parameters.preBuildSteps }}
       postBuildSteps: ${{ parameters.postBuildSteps }}
 
@@ -53,5 +61,7 @@ stages:
       globalVariableTemplatePath: ${{ parameters.globalVariableTemplatePath }}
       environmentVariableTemplateDirectory: ${{ parameters.environmentVariableTemplateDirectory }}
       environments: ${{ parameters.environments }}
+      versionOverride: ${{ parameters.versionOverride }}
+      useSourceTagNameForVersion: ${{ parameters.useSourceTagNameForVersion }}
       preReleaseSteps: ${{ parameters.preReleaseSteps }}
       postReleaseSteps: ${{ parameters.postReleaseSteps }}

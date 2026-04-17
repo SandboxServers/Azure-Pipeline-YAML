@@ -2,6 +2,12 @@ parameters:
   - name: packageJsonPath
     type: string
     default: '$(Build.SourcesDirectory)/package.json'
+  - name: versionOverride
+    type: string
+    default: 'auto'
+  - name: useSourceTagNameForVersion
+    type: boolean
+    default: false
   - name: releaseTitleFormat
     type: string
     default: '{0} {1}'
@@ -22,6 +28,14 @@ steps:
       $package = Get-Content -Raw -LiteralPath $packageJsonPath | ConvertFrom-Json
       $packageName = [string]$package.name
       $packageVersion = [string]$package.version
+      $packageVersionFromManifest = $packageVersion
+      $requestedVersionOverride = "${{ parameters.versionOverride }}"
+      $hasVersionOverride = -not [string]::IsNullOrWhiteSpace($requestedVersionOverride) -and $requestedVersionOverride.ToLowerInvariant() -ne 'auto'
+      $useSourceTagNameForVersion = '${{ parameters.useSourceTagNameForVersion }}'.ToLowerInvariant() -eq 'true'
+      $sourceBranch = "$(Build.SourceBranch)"
+      $sourceTagName = ''
+      $resolvedVersionSource = 'packageJson'
+      $resolvedTagSource = 'gitTag'
 
       if ([string]::IsNullOrWhiteSpace($packageName)) {
         throw "package.json is missing a name field."
@@ -31,12 +45,51 @@ steps:
         throw "package.json is missing a version field."
       }
 
+      if ($sourceBranch.StartsWith('refs/tags/')) {
+        $sourceTagName = $sourceBranch.Substring('refs/tags/'.Length)
+      }
+
+      if ($hasVersionOverride) {
+        $packageVersion = $requestedVersionOverride
+        $resolvedVersionSource = 'override'
+      }
+      elseif ($useSourceTagNameForVersion) {
+        if ([string]::IsNullOrWhiteSpace($sourceTagName)) {
+          throw "useSourceTagNameForVersion was enabled, but the run was not triggered from a git tag."
+        }
+
+        if ($sourceTagName -match '^[vV](?<version>\d.*)$') {
+          $packageVersion = $matches.version
+        }
+        else {
+          $packageVersion = $sourceTagName
+        }
+
+        if ([string]::IsNullOrWhiteSpace($packageVersion)) {
+          throw "The source tag name did not produce a usable package version."
+        }
+
+        $resolvedVersionSource = 'sourceTag'
+      }
+
+      if ($hasVersionOverride -or $useSourceTagNameForVersion -or "$(releaseFromTagOnly)" -ne 'true') {
+        $resolvedTagSource = 'userSpecifiedTag'
+      }
+
       $releaseTitle = [string]::Format("${{ parameters.releaseTitleFormat }}", $packageName, $packageVersion)
       $releaseTag = [string]::Format("${{ parameters.releaseTagFormat }}", $packageName, $packageVersion)
 
       Write-Host "Resolved package $packageName@$packageVersion from $packageJsonPath"
+      Write-Host "Version source: $resolvedVersionSource"
+      if (-not [string]::IsNullOrWhiteSpace($sourceTagName)) {
+        Write-Host "Source tag name: $sourceTagName"
+      }
       Write-Host "##vso[task.setvariable variable=PackageName]$packageName"
       Write-Host "##vso[task.setvariable variable=PackageVersion]$packageVersion"
+      Write-Host "##vso[task.setvariable variable=PackageVersionFromManifest]$packageVersionFromManifest"
       Write-Host "##vso[task.setvariable variable=ReleaseTitle]$releaseTitle"
       Write-Host "##vso[task.setvariable variable=ReleaseTag]$releaseTag"
+      Write-Host "##vso[task.setvariable variable=ResolvedVersionSource]$resolvedVersionSource"
+      Write-Host "##vso[task.setvariable variable=ResolvedTagSource]$resolvedTagSource"
+      Write-Host "##vso[task.setvariable variable=SourceTagName]$sourceTagName"
     displayName: ${{ parameters.displayName }}

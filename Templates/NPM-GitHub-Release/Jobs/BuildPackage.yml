@@ -8,6 +8,12 @@ parameters:
   - name: buildVariableTemplatePath
     type: string
     default: '/pipeline/variables/build.yml'
+  - name: versionOverride
+    type: string
+    default: 'auto'
+  - name: useSourceTagNameForVersion
+    type: boolean
+    default: false
   - name: preBuildSteps
     type: stepList
     default: []
@@ -50,8 +56,20 @@ jobs:
       - template: ../../Standalone/Steps/Npm/ResolvePackageMetadata.yml
         parameters:
           packageJsonPath: '$(Build.SourcesDirectory)/$(packageJsonPath)'
+          versionOverride: ${{ parameters.versionOverride }}
+          useSourceTagNameForVersion: ${{ parameters.useSourceTagNameForVersion }}
           releaseTitleFormat: '$(releaseTitleFormat)'
           releaseTagFormat: '$(releaseTagFormat)'
+
+      - template: ../../Standalone/Steps/Npm/Run.yml
+        parameters:
+          displayName: 'Apply resolved package version'
+          workingDirectory: '$(Build.SourcesDirectory)/$(npmWorkingDirectory)'
+          taskCommand: 'custom'
+          customCommand: 'version $(PackageVersion) --no-git-tag-version --allow-same-version --ignore-scripts'
+          env:
+            NPM_CONFIG_CACHE: '$(npmCacheDirectory)'
+          condition: and(succeeded(), ne(variables['ResolvedVersionSource'], 'packageJson'))
 
       - template: ../../Standalone/Steps/Npm/Run.yml
         parameters:

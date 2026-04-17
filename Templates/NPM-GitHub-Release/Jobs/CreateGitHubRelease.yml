@@ -11,6 +11,12 @@ parameters:
   - name: environmentVariableTemplatePath
     type: string
     default: '/pipeline/variables/dev.yml'
+  - name: versionOverride
+    type: string
+    default: 'auto'
+  - name: useSourceTagNameForVersion
+    type: boolean
+    default: false
   - name: preReleaseSteps
     type: stepList
     default: []
@@ -26,7 +32,7 @@ jobs:
     variables:
       - template: ${{ parameters.globalVariableTemplatePath }}@self
       - template: ${{ parameters.environmentVariableTemplatePath }}@self
-    condition: and(succeeded(), or(ne(variables['releaseFromTagOnly'], 'true'), startsWith(variables['Build.SourceBranch'], 'refs/tags/')))
+    condition: and(succeeded(), or(ne(variables['releaseFromTagOnly'], 'true'), startsWith(variables['Build.SourceBranch'], 'refs/tags/'), ${{ ne(parameters.versionOverride, 'auto') }}))
     steps:
       - checkout: self
         fetchDepth: 0
@@ -39,6 +45,8 @@ jobs:
       - template: ../../Standalone/Steps/Npm/ResolvePackageMetadata.yml
         parameters:
           packageJsonPath: '$(Build.SourcesDirectory)/$(packageJsonPath)'
+          versionOverride: ${{ parameters.versionOverride }}
+          useSourceTagNameForVersion: ${{ parameters.useSourceTagNameForVersion }}
           releaseTitleFormat: '$(releaseTitleFormat)'
           releaseTagFormat: '$(releaseTagFormat)'
 
@@ -65,6 +73,26 @@ jobs:
           target: '$(Build.SourceVersion)'
           tagSource: 'gitTag'
           tagPattern: '$(gitTagPattern)'
+          title: '$(ReleaseTitle)'
+          releaseNotesSource: 'filePath'
+          releaseNotesFilePath: '$(Pipeline.Workspace)/$(packageArtifactName)/$(releaseNotesFileName)'
+          assets: '$(Pipeline.Workspace)/$(packageArtifactName)/$(packageOutputGlob)'
+          isDraft: '$(gitHubReleaseDraft)'
+          isPreRelease: '$(gitHubReleasePreRelease)'
+          makeLatest: '$(gitHubReleaseMakeLatest)'
+          addChangeLog: '$(gitHubReleaseAddChangeLog)'
+          changeLogCompareToRelease: '$(gitHubReleaseChangeLogCompareTo)'
+          changeLogCompareToReleaseTag: '$(gitHubReleaseChangeLogCompareToReleaseTag)'
+          changeLogType: '$(gitHubReleaseChangeLogType)'
+          changeLogLabels: '$(gitHubReleaseChangeLogLabels)'
+          condition: and(succeeded(), ne(variables['gitHubReleaseDryRun'], 'true'), eq(variables['ResolvedTagSource'], 'gitTag'))
+
+      - template: ../../Standalone/Steps/GitHub/CreateRelease.yml
+        parameters:
+          gitHubConnection: '$(githubServiceConnection)'
+          repositoryName: '$(githubRepositoryName)'
+          target: '$(Build.SourceVersion)'
+          tagSource: 'userSpecifiedTag'
           tag: '$(ReleaseTag)'
           title: '$(ReleaseTitle)'
           releaseNotesSource: 'filePath'
@@ -78,6 +106,6 @@ jobs:
           changeLogCompareToReleaseTag: '$(gitHubReleaseChangeLogCompareToReleaseTag)'
           changeLogType: '$(gitHubReleaseChangeLogType)'
           changeLogLabels: '$(gitHubReleaseChangeLogLabels)'
-          condition: and(succeeded(), ne(variables['gitHubReleaseDryRun'], 'true'))
+          condition: and(succeeded(), ne(variables['gitHubReleaseDryRun'], 'true'), eq(variables['ResolvedTagSource'], 'userSpecifiedTag'))
 
       - ${{ parameters.postReleaseSteps }}

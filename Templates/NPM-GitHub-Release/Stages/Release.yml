@@ -19,6 +19,12 @@ parameters:
     type: object
     default:
       - dev
+  - name: versionOverride
+    type: string
+    default: 'auto'
+  - name: useSourceTagNameForVersion
+    type: boolean
+    default: false
   - name: preReleaseSteps
     type: stepList
     default: []
@@ -39,5 +45,7 @@ stages:
             environmentName: ${{ environment }}
             globalVariableTemplatePath: ${{ parameters.globalVariableTemplatePath }}
             environmentVariableTemplatePath: ${{ format('{0}/{1}.yml', parameters.environmentVariableTemplateDirectory, environment) }}
+            versionOverride: ${{ parameters.versionOverride }}
+            useSourceTagNameForVersion: ${{ parameters.useSourceTagNameForVersion }}
             preReleaseSteps: ${{ parameters.preReleaseSteps }}
             postReleaseSteps: ${{ parameters.postReleaseSteps }}

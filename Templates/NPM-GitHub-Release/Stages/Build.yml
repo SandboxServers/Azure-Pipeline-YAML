@@ -11,6 +11,12 @@ parameters:
   - name: buildVariableTemplatePath
     type: string
     default: '/pipeline/variables/build.yml'
+  - name: versionOverride
+    type: string
+    default: 'auto'
+  - name: useSourceTagNameForVersion
+    type: boolean
+    default: false
   - name: preBuildSteps
     type: stepList
     default: []
@@ -27,5 +33,7 @@ stages:
           vmImage: ${{ parameters.vmImage }}
           globalVariableTemplatePath: ${{ parameters.globalVariableTemplatePath }}
           buildVariableTemplatePath: ${{ parameters.buildVariableTemplatePath }}
+          versionOverride: ${{ parameters.versionOverride }}
+          useSourceTagNameForVersion: ${{ parameters.useSourceTagNameForVersion }}
           preBuildSteps: ${{ parameters.preBuildSteps }}
           postBuildSteps: ${{ parameters.postBuildSteps }}
