@@ -31,21 +31,36 @@ parameters:
   - name: postReleaseSteps
     type: stepList
     default: []
+  # createRelease: false skips the entire release stage (build/test/pack only).
+  - name: createRelease
+    type: boolean
+    default: true
+  # releaseType: runtime override for the release type.
+  #   default   — use environment-file settings (dev.yml/prod.yml)
+  #   release   — full public release
+  #   prerelease — prerelease
+  #   draft     — draft release
+  #   tagOnly   — push a git tag only, no GitHub release object
+  - name: releaseType
+    type: string
+    default: 'default'
 
 stages:
-  - ${{ each environment in parameters.environments }}:
-    - stage: ${{ format('{0}_{1}', parameters.stageName, environment) }}
-      displayName: ${{ format('Create GitHub Release ({0})', environment) }}
-      dependsOn: ${{ parameters.dependsOn }}
-      condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
-      jobs:
-        - template: ../Jobs/CreateGitHubRelease.yml
-          parameters:
-            vmImage: ${{ parameters.vmImage }}
-            environmentName: ${{ environment }}
-            globalVariableTemplatePath: ${{ parameters.globalVariableTemplatePath }}
-            environmentVariableTemplatePath: ${{ format('{0}/{1}.yml', parameters.environmentVariableTemplateDirectory, environment) }}
-            versionOverride: ${{ parameters.versionOverride }}
-            useSourceTagNameForVersion: ${{ parameters.useSourceTagNameForVersion }}
-            preReleaseSteps: ${{ parameters.preReleaseSteps }}
-            postReleaseSteps: ${{ parameters.postReleaseSteps }}
+  - ${{ if eq(parameters.createRelease, true) }}:
+    - ${{ each environment in parameters.environments }}:
+      - stage: ${{ format('{0}_{1}', parameters.stageName, environment) }}
+        displayName: ${{ format('Create GitHub Release ({0})', environment) }}
+        dependsOn: ${{ parameters.dependsOn }}
+        condition: and(succeeded(), ne(variables['Build.Reason'], 'PullRequest'))
+        jobs:
+          - template: ../Jobs/CreateGitHubRelease.yml
+            parameters:
+              vmImage: ${{ parameters.vmImage }}
+              environmentName: ${{ environment }}
+              globalVariableTemplatePath: ${{ parameters.globalVariableTemplatePath }}
+              environmentVariableTemplatePath: ${{ format('{0}/{1}.yml', parameters.environmentVariableTemplateDirectory, environment) }}
+              versionOverride: ${{ parameters.versionOverride }}
+              useSourceTagNameForVersion: ${{ parameters.useSourceTagNameForVersion }}
+              releaseType: ${{ parameters.releaseType }}
+              preReleaseSteps: ${{ parameters.preReleaseSteps }}
+              postReleaseSteps: ${{ parameters.postReleaseSteps }}

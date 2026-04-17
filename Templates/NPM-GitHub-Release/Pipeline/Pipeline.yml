@@ -66,6 +66,20 @@ parameters:
   - name: publishCodeCoverage
     type: boolean
     default: true
+  # Release gating — passed through to the Release stage.
+  # createRelease: false skips the stage entirely (build/test/pack only).
+  # releaseType: overrides the env-file isDraft/isPreRelease defaults at queue time.
+  #   default   — use environment-file settings (dev.yml/prod.yml)
+  #   release   — full public release, overrides env-file
+  #   prerelease — prerelease, overrides env-file
+  #   draft     — draft release, overrides env-file
+  #   tagOnly   — push a git tag only, no GitHub release object
+  - name: createRelease
+    type: boolean
+    default: true
+  - name: releaseType
+    type: string
+    default: 'default'
 
 stages:
   - template: ../Stages/Build.yml
@@ -100,3 +114,5 @@ stages:
       useSourceTagNameForVersion: ${{ parameters.useSourceTagNameForVersion }}
       preReleaseSteps: ${{ parameters.preReleaseSteps }}
       postReleaseSteps: ${{ parameters.postReleaseSteps }}
+      createRelease: ${{ parameters.createRelease }}
+      releaseType: ${{ parameters.releaseType }}
