@@ -1,0 +1,101 @@
+parameters:
+  chartName: ''
+  chartPath: ''
+  acrName: ''
+  helmVersion: ''
+  acrServiceConnection: ''
+
+jobs:
+- job: publish_helm
+  displayName: 'Publish Helm Chart'
+  pool:
+    vmImage: ubuntu-latest
+  dependsOn: []
+  variables:
+    - template: /pipeline/variables/build.yml@self
+  name: publish
+  steps:
+  - checkout: self
+    displayName: Checkout source code
+
+  - task: HelmInstaller@1
+    displayName: 'Install Helm $(helmVersion)'
+    inputs:
+      helmVersionToInstall: '${{ parameters.helmVersion }}'
+
+  - bash: |
+      HELM_REPOS="${HELM_REPOS:-bitnami=https://charts.bitnami.com/bitnami}"
+
+      echo "=== Adding Helm Repositories ==="
+      echo "$HELM_REPOS" | tr ',' '\n' | while read repo; do
+        REPO_NAME=$(echo "$repo" | cut -d'=' -f1)
+        REPO_URL=$(echo "$repo" | cut -d'=' -f2)
+
+        if [ -n "$REPO_NAME" ] && [ -n "$REPO_URL" ]; then
+          echo "Adding repository: $REPO_NAME ($REPO_URL)"
+          helm repo add $REPO_NAME $REPO_URL || {
+            echo "⚠️ Warning: Failed to add repository $REPO_NAME"
+          }
+        fi
+      done
+
+      helm repo update
+      echo "✅ Helm repositories updated"
+    displayName: Add Helm repositories
+    env:
+      HELM_REPOS: bitnami=https://charts.bitnami.com/bitnami
+
+  - task: Docker@2
+    displayName: 'Login to ACR'
+    name: acrLogin
+    inputs:
+      command: login
+      containerRegistry: ${{ parameters.acrName }}.azurecr.io
+    env:
+      ACR_NAME: ${{ parameters.acrName }}
+      AZURE_SERVICE_CONNECTION: ${{ parameters.acrServiceConnection }}
+
+  - bash: |
+      set -e
+
+      ACR_NAME="${ACR_NAME:-${{ parameters.acrName }}}"
+      ACR_LOGIN_SERVER="${ACR_NAME}.azurecr.io"
+
+      echo "=== Logging into Helm Registry ==="
+      echo "Registry: $ACR_LOGIN_SERVER"
+      echo "======================================="
+
+      # Set output variable for downstream stages
+      echo "##vso[task.setvariable variable=ACR_LOGIN_SERVER;isOutput=true]$ACR_LOGIN_SERVER"
+
+      # Get ACR access token and login to Helm OCI registry
+      ACCESS_TOKEN=$(az acr login --name $ACR_NAME --expose-token --output tsv --query accessToken)
+
+      if [ -z "$ACCESS_TOKEN" ]; then
+        echo "❌ Error: Failed to get ACR access token"
+        exit 1
+      fi
+
+      echo "$ACCESS_TOKEN" | helm registry login "$ACR_LOGIN_SERVER" --username 00000000-0000-0000-0000-000000000000 --password-stdin
+
+      echo "✅ Successfully logged into Helm registry"
+    displayName: 'Login to Helm OCI registry'
+    name: helmRegistryLogin
+    env:
+      ACR_NAME: ${{ parameters.acrName }}
+      AZURE_SERVICE_CONNECTION: ${{ parameters.acrServiceConnection }}
+
+  - template: ../Steps/Helm/Lint.yml@YAML
+    parameters:
+      chartPath: ${{ parameters.chartPath }}
+
+  - template: ../Steps/Helm/Package.yml@YAML
+    parameters:
+      chartPath: ${{ parameters.chartPath }}
+      chartName: ${{ parameters.chartName }}
+
+  - template: ../Steps/Helm/Publish.yml@YAML
+    parameters:
+      chartName: ${{ parameters.chartName }}
+      chartPath: ${{ parameters.chartPath }}
+      acrName: ${{ parameters.acrName }}

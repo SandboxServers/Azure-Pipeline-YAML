@@ -1,0 +1,52 @@
+parameters:
+  chartPath: ''
+  chartName: ''
+
+steps:
+- bash: |
+    set -e  # Exit on error
+
+    # Validate chart path exists
+    if [ ! -d "${{ parameters.chartPath }}" ]; then
+      echo "❌ Error: Chart directory not found at ${{ parameters.chartPath }}"
+      exit 1
+    fi
+
+    # Check for requirements.yaml or Chart.yaml dependencies
+    if [ -f "${{ parameters.chartPath }}/requirements.yaml" ] || grep -q "dependencies:" "${{ parameters.chartPath }}/Chart.yaml"; then
+      echo "=== Updating Chart Dependencies ==="
+      helm dependency update ${{ parameters.chartPath }}
+      echo "✅ Dependencies updated"
+    else
+      echo "ℹ️ No dependencies found, skipping dependency update"
+    fi
+  displayName: 'Update chart dependencies'
+
+- bash: |
+    set -e  # Exit on error
+
+    # Change to chart parent directory
+    CHART_DIR=$(dirname "${{ parameters.chartPath }}")
+    CHART_NAME=$(basename "${{ parameters.chartPath }}")
+
+    echo "=== Packaging Helm Chart ==="
+    echo "Chart: ${{ parameters.chartName }}"
+    echo "Directory: $CHART_DIR"
+    echo "=========================="
+
+    cd "$CHART_DIR"
+
+    # Package the chart
+    helm package "$CHART_NAME" --destination "$CHART_DIR"
+
+    # Verify package was created
+    CHART_VERSION=$(grep '^version:' "${{ parameters.chartPath }}/Chart.yaml" | awk '{print $2}')
+    CHART_FILE="${{ parameters.chartName }}-${CHART_VERSION}.tgz"
+
+    if [ -f "$CHART_FILE" ]; then
+      echo "✅ Successfully packaged: $CHART_FILE"
+    else
+      echo "❌ Error: Package not created"
+      exit 1
+    fi
+  displayName: 'Package Helm chart'

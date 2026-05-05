@@ -1,0 +1,44 @@
+# Example Azure DevOps Pipeline for MeridianConsole
+# Copy this file to the root of your MeridianConsole repository
+
+trigger:
+  branches:
+    include:
+      - main
+      - release/*
+      - feature/*
+  paths:
+    include:
+      - deploy/kubernetes/helm/meridian-console/**
+
+pr: none
+
+resources:
+  repositories:
+  - repository: YAML
+    type: git
+    name: SandboxServers/Azure-Pipeline-YAML
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+extends:
+  template: Templates/Helm+K8s/Pipeline/Pipeline.yml@YAML
+  parameters:
+    Environments:
+    - env: dev
+      namespace: meridian-dev
+      releaseName: meridian-console-dev
+    - env: prod
+      namespace: meridian-prod
+      releaseName: meridian-console
+    ChartName: meridian-console
+    ChartPath: deploy/kubernetes/helm/meridian-console
+    ACRName: meridianconsoleacr
+    HelmVersion: 3.13.0
+    VariableLocation: /pipeline/variables
+
+    # Optional parameters (recommended)
+    ACRServiceConnection: 'my-azure-subscription'  # Your ACR service connection name
+    DeployTimeout: '15m'      # Increased timeout for complex deployments
+    TestTimeout: '10m'         # Increased timeout for test execution
